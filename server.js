@@ -43,7 +43,7 @@ app.use(cors());
 app.use(express.json());
 
 // 管理画面の静的ファイル配信
-app.use('/admin', express.static(path.join(__dirname, '../admin-panel')));
+app.use('/admin', express.static(path.join(__dirname, 'admin-panel')));
 
 // ==========================================
 // API: データ記録
