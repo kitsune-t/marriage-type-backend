@@ -1,0 +1,15 @@
+{
+  "name": "marriage-type-backend",
+  "version": "1.0.0",
+  "description": "マリッジタイプ診断 管理用バックエンド",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "cors": "^2.8.5",
+    "better-sqlite3": "^11.7.0"
+  }
+}
