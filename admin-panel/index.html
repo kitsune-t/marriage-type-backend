@@ -5,43 +5,682 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>管理画面 - マリッジタイプ診断</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f5f7fa; min-height: 100vh; }
-        .login-container { display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
-        .login-box { background: white; padding: 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
-        .login-box h1 { text-align: center; color: #7EB8DA; margin-bottom: 30px; font-size: 1.5rem; }
-        .login-box input { width: 100%; padding: 14px 16px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1rem; margin-bottom: 20px; }
-        .login-box input:focus { outline: none; border-color: #7EB8DA; }
-        .login-box button { width: 100%; padding: 14px; background: linear-gradient(135deg, #7EB8DA, #F5A5B8); color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer; }
-        .error-message { color: #e74c3c; text-align: center; margin-bottom: 15px; display: none; }
-        .dashboard { display: none; }
-        .header { background: white; padding: 20px 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
-        .header h1 { color: #333; font-size: 1.3rem; }
-        .header .logo { color: #7EB8DA; font-weight: bold; }
-        .logout-btn { padding: 8px 20px; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; }
-        .main { padding: 30px; max-width: 1400px; margin: 0 auto; }
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .stat-card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-        .stat-card h3 { color: #888; font-size: 0.9rem; margin-bottom: 10px; }
-        .stat-card .value { font-size: 2.5rem; font-weight: bold; color: #333; }
-        .stat-card.primary .value { color: #7EB8DA; }
-        .stat-card.secondary .value { color: #F5A5B8; }
-        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        .card h2 { color: #333; font-size: 1.1rem; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #eee; }
-        .type-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; }
-        .type-item { background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; }
-        .type-item .code { font-weight: bold; color: #7EB8DA; font-size: 1.1rem; }
-        .type-item .count { font-size: 1.5rem; font-weight: bold; color: #333; margin: 5px 0; }
-        .type-item .name { font-size: 0.8rem; color: #888; }
-        .recent-list { max-height: 400px; overflow-y: auto; }
-        .recent-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #eee; }
-        .recent-item .type { font-weight: bold; color: #7EB8DA; }
-        .recent-item .time { color: #888; font-size: 0.85rem; }
-        .no-data { text-align: center; color: #888; padding: 40px; }
-        .refresh-btn { padding: 8px 20px; background: #7EB8DA; color: white; border: none; border-radius: 6px; cursor: pointer; margin-left: 10px; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+        }
+        
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .login-box {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+        
+        .login-box h1 {
+            text-align: center;
+            color: #7EB8DA;
+            margin-bottom: 30px;
+            font-size: 1.5rem;
+        }
+        
+        .login-box input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            margin-bottom: 20px;
+            transition: border-color 0.3s;
+        }
+        
+        .login-box input:focus {
+            outline: none;
+            border-color: #7EB8DA;
+        }
+        
+        .login-box button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #7EB8DA, #F5A5B8);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .login-box button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(126, 184, 218, 0.4);
+        }
+        
+        .error-message {
+            color: #e74c3c;
+            text-align: center;
+            margin-bottom: 15px;
+            display: none;
+        }
+        
+        /* Dashboard */
+        .dashboard {
+            display: none;
+        }
+        
+        .header {
+            background: white;
+            padding: 15px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .header h1 {
+            color: #333;
+            font-size: 1.3rem;
+        }
+        
+        .header .logo {
+            color: #7EB8DA;
+            font-weight: bold;
+        }
+        
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .logout-btn {
+            padding: 8px 20px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        
+        .main {
+            padding: 30px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        /* Tabs Navigation */
+        .tabs {
+            display: flex;
+            background: white;
+            border-radius: 12px;
+            padding: 8px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+        
+        .tab-btn {
+            padding: 12px 24px;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.3s;
+        }
+        
+        .tab-btn:hover {
+            background: #f0f0f0;
+        }
+        
+        .tab-btn.active {
+            background: linear-gradient(135deg, #7EB8DA, #F5A5B8);
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Date Filter */
+        .date-filter {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            flex-wrap: wrap;
+        }
+        
+        .date-filter label {
+            font-weight: 500;
+            color: #555;
+        }
+        
+        .date-filter input[type="date"] {
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+        
+        .date-filter input[type="date"]:focus {
+            outline: none;
+            border-color: #7EB8DA;
+        }
+        
+        .preset-btns {
+            display: flex;
+            gap: 8px;
+            margin-left: auto;
+            flex-wrap: wrap;
+        }
+        
+        .preset-btn {
+            padding: 8px 14px;
+            background: #f0f0f0;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        
+        .preset-btn:hover {
+            background: #e0e0e0;
+        }
+        
+        .preset-btn.active {
+            background: #7EB8DA;
+            color: white;
+        }
+        
+        .apply-btn {
+            padding: 8px 20px;
+            background: #7EB8DA;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .stat-card h3 {
+            color: #888;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+        
+        .stat-card .value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .stat-card .sub-value {
+            font-size: 0.85rem;
+            color: #888;
+            margin-top: 5px;
+        }
+        
+        .stat-card.primary .value {
+            color: #7EB8DA;
+        }
+        
+        .stat-card.secondary .value {
+            color: #F5A5B8;
+        }
+        
+        .stat-card.success .value {
+            color: #6BCB9E;
+        }
+        
+        .stat-card.warning .value {
+            color: #F5A623;
+        }
+        
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        
+        .card h2 {
+            color: #333;
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .card h2 .icon {
+            font-size: 1.3rem;
+        }
+        
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+        }
+        
+        .type-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+        }
+        
+        .type-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+        
+        .type-item:hover {
+            transform: translateY(-2px);
+        }
+        
+        .type-item .code {
+            font-weight: bold;
+            color: #7EB8DA;
+            font-size: 1.1rem;
+        }
+        
+        .type-item .count {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #333;
+            margin: 5px 0;
+        }
+        
+        .type-item .name {
+            font-size: 0.8rem;
+            color: #888;
+        }
+        
+        .type-item .percent {
+            font-size: 0.75rem;
+            color: #999;
+            margin-top: 3px;
+        }
+        
+        .recent-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .recent-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .recent-item:last-child {
+            border-bottom: none;
+        }
+        
+        .recent-item .type {
+            font-weight: bold;
+            color: #7EB8DA;
+        }
+        
+        .recent-item .time {
+            color: #888;
+            font-size: 0.85rem;
+        }
+        
+        .chart-container {
+            height: 300px;
+            position: relative;
+        }
+        
+        .chart-container.large {
+            height: 400px;
+        }
+        
+        .no-data {
+            text-align: center;
+            color: #888;
+            padding: 40px;
+        }
+        
+        .refresh-btn {
+            padding: 8px 20px;
+            background: #7EB8DA;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+        
+        /* Funnel */
+        .funnel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .funnel-step {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .funnel-bar {
+            height: 40px;
+            background: linear-gradient(90deg, #7EB8DA, #9ECAE1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
+            color: white;
+            font-weight: bold;
+            min-width: 60px;
+            transition: width 0.5s ease;
+        }
+        
+        .funnel-label {
+            min-width: 100px;
+            font-weight: 500;
+            color: #555;
+        }
+        
+        .funnel-value {
+            font-size: 0.9rem;
+            color: #888;
+        }
+        
+        .funnel-rate {
+            font-size: 0.85rem;
+            color: #6BCB9E;
+            font-weight: 500;
+        }
+        
+        /* Heatmap */
+        .heatmap-container {
+            overflow-x: auto;
+        }
+        
+        .heatmap {
+            display: grid;
+            grid-template-columns: 60px repeat(24, 1fr);
+            gap: 2px;
+            min-width: 600px;
+        }
+        
+        .heatmap-header {
+            font-size: 0.7rem;
+            color: #888;
+            text-align: center;
+            padding: 5px 0;
+        }
+        
+        .heatmap-row-label {
+            font-size: 0.75rem;
+            color: #666;
+            display: flex;
+            align-items: center;
+            padding-right: 10px;
+        }
+        
+        .heatmap-cell {
+            aspect-ratio: 1;
+            border-radius: 3px;
+            min-height: 25px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .heatmap-cell:hover {
+            transform: scale(1.2);
+            z-index: 1;
+        }
+        
+        /* Device/Referrer Charts */
+        .device-chart {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .device-pie {
+            width: 200px;
+            height: 200px;
+        }
+        
+        .device-legend {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+        }
+        
+        .legend-label {
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .legend-value {
+            color: #888;
+            font-size: 0.9rem;
+        }
+        
+        /* Referrer List */
+        .referrer-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .referrer-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .referrer-rank {
+            width: 28px;
+            height: 28px;
+            background: #f0f0f0;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #666;
+        }
+        
+        .referrer-rank.top {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: white;
+        }
+        
+        .referrer-domain {
+            flex: 1;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .referrer-bar-container {
+            flex: 2;
+            background: #f0f0f0;
+            border-radius: 4px;
+            height: 8px;
+        }
+        
+        .referrer-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #7EB8DA, #F5A5B8);
+            border-radius: 4px;
+            transition: width 0.5s;
+        }
+        
+        .referrer-count {
+            min-width: 50px;
+            text-align: right;
+            color: #888;
+            font-size: 0.9rem;
+        }
+        
+        /* Page Stats */
+        .page-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .page-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .page-name {
+            flex: 1;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .page-count {
+            font-weight: bold;
+            color: #7EB8DA;
+        }
+        
+        /* Export Buttons */
+        .export-section {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .export-btn {
+            padding: 12px 24px;
+            background: white;
+            border: 2px solid #7EB8DA;
+            color: #7EB8DA;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        
+        .export-btn:hover {
+            background: #7EB8DA;
+            color: white;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .main {
+                padding: 15px;
+            }
+            
+            .header {
+                padding: 15px;
+            }
+            
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+            
+            .date-filter {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .preset-btns {
+                margin-left: 0;
+                justify-content: center;
+            }
+            
+            .stat-card .value {
+                font-size: 2rem;
+            }
+        }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
+    <!-- ログイン画面 -->
     <div class="login-container" id="loginContainer">
         <div class="login-box">
             <h1>🔐 管理画面ログイン</h1>
@@ -50,62 +689,979 @@
             <button onclick="login()">ログイン</button>
         </div>
     </div>
+    
+    <!-- ダッシュボード -->
     <div class="dashboard" id="dashboard">
         <header class="header">
             <h1><span class="logo">マリッジタイプ診断</span> 管理画面</h1>
-            <div>
-                <button class="refresh-btn" onclick="loadDashboard()">🔄 更新</button>
+            <div class="header-actions">
+                <button class="refresh-btn" onclick="loadAllData()">🔄 更新</button>
                 <button class="logout-btn" onclick="logout()">ログアウト</button>
             </div>
         </header>
+        
         <main class="main">
-            <div class="stats-grid">
-                <div class="stat-card primary"><h3>📊 総アクセス数</h3><div class="value" id="totalViews">-</div></div>
-                <div class="stat-card"><h3>📈 今日のアクセス</h3><div class="value" id="todayViews">-</div></div>
-                <div class="stat-card secondary"><h3>✅ 総診断数</h3><div class="value" id="totalDiagnosis">-</div></div>
-                <div class="stat-card"><h3>🆕 今日の診断</h3><div class="value" id="todayDiagnosis">-</div></div>
+            <!-- タブナビゲーション -->
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="overview">📊 概要</button>
+                <button class="tab-btn" data-tab="analysis">📈 詳細分析</button>
+                <button class="tab-btn" data-tab="conversion">🎯 コンバージョン</button>
+                <button class="tab-btn" data-tab="behavior">⏰ 行動分析</button>
+                <button class="tab-btn" data-tab="export">💾 エクスポート</button>
             </div>
-            <div class="card"><h2>🎯 タイプ別診断数</h2><div class="type-stats" id="typeStats"><div class="no-data">まだデータがありません</div></div></div>
-            <div class="card"><h2>🕐 最近の診断結果</h2><div class="recent-list" id="recentList"><div class="no-data">まだデータがありません</div></div></div>
+            
+            <!-- 日付フィルター -->
+            <div class="date-filter">
+                <label>期間:</label>
+                <input type="date" id="startDate">
+                <span>〜</span>
+                <input type="date" id="endDate">
+                <div class="preset-btns">
+                    <button class="preset-btn" data-days="7">7日間</button>
+                    <button class="preset-btn active" data-days="30">30日間</button>
+                    <button class="preset-btn" data-days="90">90日間</button>
+                    <button class="preset-btn" data-days="365">1年間</button>
+                </div>
+                <button class="apply-btn" onclick="loadAllData()">適用</button>
+            </div>
+            
+            <!-- 概要タブ -->
+            <div class="tab-content active" id="tab-overview">
+                <div class="stats-grid">
+                    <div class="stat-card primary">
+                        <h3>📊 期間内アクセス数</h3>
+                        <div class="value" id="periodViews">-</div>
+                        <div class="sub-value">総計: <span id="totalViews">-</span></div>
+                    </div>
+                    <div class="stat-card secondary">
+                        <h3>✅ 期間内診断数</h3>
+                        <div class="value" id="periodDiagnosis">-</div>
+                        <div class="sub-value">総計: <span id="totalDiagnosis">-</span></div>
+                    </div>
+                    <div class="stat-card success">
+                        <h3>📈 今日のアクセス</h3>
+                        <div class="value" id="todayViews">-</div>
+                    </div>
+                    <div class="stat-card warning">
+                        <h3>🆕 今日の診断</h3>
+                        <div class="value" id="todayDiagnosis">-</div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2><span class="icon">📈</span> アクセス・診断推移</h2>
+                    <div class="chart-container large">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="grid-2">
+                    <div class="card">
+                        <h2><span class="icon">🎯</span> タイプ別診断数</h2>
+                        <div class="type-stats" id="typeStats">
+                            <div class="loading">読み込み中...</div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h2><span class="icon">🕐</span> 最近の診断結果</h2>
+                        <div class="recent-list" id="recentList">
+                            <div class="loading">読み込み中...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 詳細分析タブ -->
+            <div class="tab-content" id="tab-analysis">
+                <div class="grid-2">
+                    <div class="card">
+                        <h2><span class="icon">📱</span> デバイス別アクセス</h2>
+                        <div class="device-chart" id="deviceChart">
+                            <div class="loading">読み込み中...</div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h2><span class="icon">🔗</span> 流入元TOP10</h2>
+                        <div class="referrer-list" id="referrerList">
+                            <div class="loading">読み込み中...</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="grid-2">
+                    <div class="card">
+                        <h2><span class="icon">📄</span> ページ別アクセス</h2>
+                        <div class="page-stats" id="pageStats">
+                            <div class="loading">読み込み中...</div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h2><span class="icon">🥧</span> タイプ分布</h2>
+                        <div class="chart-container">
+                            <canvas id="typePieChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- コンバージョンタブ -->
+            <div class="tab-content" id="tab-conversion">
+                <div class="stats-grid">
+                    <div class="stat-card primary">
+                        <h3>🎯 診断開始率</h3>
+                        <div class="value" id="quizStartRate">-</div>
+                        <div class="sub-value">ホーム → クイズ開始</div>
+                    </div>
+                    <div class="stat-card secondary">
+                        <h3>✅ 診断完了率</h3>
+                        <div class="value" id="quizCompleteRate">-</div>
+                        <div class="sub-value">クイズ開始 → 完了</div>
+                    </div>
+                    <div class="stat-card success">
+                        <h3>📈 総合CVR</h3>
+                        <div class="value" id="conversionRate">-</div>
+                        <div class="sub-value">ホーム → 診断完了</div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2><span class="icon">🔽</span> コンバージョンファネル</h2>
+                    <div class="funnel" id="funnel">
+                        <div class="loading">読み込み中...</div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2><span class="icon">📊</span> 日別コンバージョン推移</h2>
+                    <div class="chart-container large">
+                        <canvas id="conversionTrendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 行動分析タブ -->
+            <div class="tab-content" id="tab-behavior">
+                <div class="grid-2">
+                    <div class="card">
+                        <h2><span class="icon">⏰</span> 時間帯別アクセス</h2>
+                        <div class="chart-container">
+                            <canvas id="hourlyChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h2><span class="icon">📅</span> 曜日別アクセス</h2>
+                        <div class="chart-container">
+                            <canvas id="weekdayChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2><span class="icon">🗓️</span> アクティビティヒートマップ（曜日×時間帯）</h2>
+                    <div class="heatmap-container" id="heatmapContainer">
+                        <div class="loading">読み込み中...</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- エクスポートタブ -->
+            <div class="tab-content" id="tab-export">
+                <div class="card">
+                    <h2><span class="icon">💾</span> データエクスポート</h2>
+                    <p style="color: #666; margin-bottom: 20px;">選択した期間のデータをCSV形式でダウンロードできます。</p>
+                    <div class="export-section">
+                        <button class="export-btn" onclick="exportDiagnosis()">
+                            <span>📊</span> 診断結果データ
+                        </button>
+                        <button class="export-btn" onclick="exportPageviews()">
+                            <span>👁️</span> ページビューデータ
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2><span class="icon">📋</span> エクスポート内容</h2>
+                    <div class="grid-2">
+                        <div>
+                            <h3 style="color: #7EB8DA; margin-bottom: 10px;">診断結果データ</h3>
+                            <ul style="color: #666; line-height: 1.8;">
+                                <li>診断ID</li>
+                                <li>タイプコード（DPTN等）</li>
+                                <li>タイプ名</li>
+                                <li>スコア詳細</li>
+                                <li>ユーザーエージェント</li>
+                                <li>診断日時</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h3 style="color: #F5A5B8; margin-bottom: 10px;">ページビューデータ</h3>
+                            <ul style="color: #666; line-height: 1.8;">
+                                <li>アクセスID</li>
+                                <li>ページ名</li>
+                                <li>ユーザーエージェント</li>
+                                <li>リファラー（流入元）</li>
+                                <li>IPアドレス</li>
+                                <li>アクセス日時</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
+    
     <script>
-        const API_BASE = window.location.origin;
+        const API_BASE = window.location.hostname === 'localhost' 
+            ? 'http://localhost:3001' 
+            : '';
+        
         let apiKey = localStorage.getItem('adminApiKey') || '';
-        document.addEventListener('DOMContentLoaded', () => { if (apiKey) showDashboard(); document.getElementById('apiKeyInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') login(); }); });
+        let charts = {};
+        
+        // 初期化
+        document.addEventListener('DOMContentLoaded', () => {
+            if (apiKey) {
+                showDashboard();
+            }
+            
+            // Enterキーでログイン
+            document.getElementById('apiKeyInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') login();
+            });
+            
+            // タブ切り替え
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+            });
+            
+            // 期間プリセット
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.addEventListener('click', () => setPresetDays(parseInt(btn.dataset.days)));
+            });
+            
+            // 初期日付設定
+            setPresetDays(30);
+        });
+        
+        // ログイン
         async function login() {
             const inputKey = document.getElementById('apiKeyInput').value;
+            
             try {
-                const response = await fetch(`${API_BASE}/api/admin/dashboard`, { headers: { 'X-API-Key': inputKey } });
-                if (response.ok) { apiKey = inputKey; localStorage.setItem('adminApiKey', apiKey); showDashboard(); }
-                else { document.getElementById('errorMessage').style.display = 'block'; }
-            } catch (error) { alert('サーバーに接続できません'); }
+                const response = await fetch(`${API_BASE}/api/admin/dashboard`, {
+                    headers: { 'X-API-Key': inputKey }
+                });
+                
+                if (response.ok) {
+                    apiKey = inputKey;
+                    localStorage.setItem('adminApiKey', apiKey);
+                    showDashboard();
+                } else {
+                    document.getElementById('errorMessage').style.display = 'block';
+                }
+            } catch (error) {
+                alert('サーバーに接続できません。バックエンドが起動しているか確認してください。');
+            }
         }
-        function logout() { apiKey = ''; localStorage.removeItem('adminApiKey'); document.getElementById('loginContainer').style.display = 'flex'; document.getElementById('dashboard').style.display = 'none'; }
-        function showDashboard() { document.getElementById('loginContainer').style.display = 'none'; document.getElementById('dashboard').style.display = 'block'; loadDashboard(); }
-        async function loadDashboard() {
+        
+        // ログアウト
+        function logout() {
+            apiKey = '';
+            localStorage.removeItem('adminApiKey');
+            document.getElementById('loginContainer').style.display = 'flex';
+            document.getElementById('dashboard').style.display = 'none';
+            document.getElementById('apiKeyInput').value = '';
+        }
+        
+        // ダッシュボード表示
+        function showDashboard() {
+            document.getElementById('loginContainer').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+            loadAllData();
+        }
+        
+        // タブ切り替え
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tabId);
+            });
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.toggle('active', content.id === `tab-${tabId}`);
+            });
+        }
+        
+        // 期間プリセット設定
+        function setPresetDays(days) {
+            const end = new Date();
+            const start = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+            
+            document.getElementById('startDate').value = start.toISOString().split('T')[0];
+            document.getElementById('endDate').value = end.toISOString().split('T')[0];
+            
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.days) === days);
+            });
+        }
+        
+        // 日付取得
+        function getDateRange() {
+            return {
+                startDate: document.getElementById('startDate').value,
+                endDate: document.getElementById('endDate').value
+            };
+        }
+        
+        // 全データ読み込み
+        async function loadAllData() {
+            const { startDate, endDate } = getDateRange();
+            
+            await Promise.all([
+                loadOverview(startDate, endDate),
+                loadAnalytics(startDate, endDate),
+                loadConversion(startDate, endDate),
+                loadBehavior(startDate, endDate)
+            ]);
+        }
+        
+        // 概要データ読み込み
+        async function loadOverview(startDate, endDate) {
             try {
-                const res = await fetch(`${API_BASE}/api/admin/dashboard`, { headers: { 'X-API-Key': apiKey } });
-                if (!res.ok) { if (res.status === 401) logout(); return; }
+                // 基本ダッシュボードデータ
+                const dashboardRes = await fetch(`${API_BASE}/api/admin/dashboard`, {
+                    headers: { 'X-API-Key': apiKey }
+                });
+                
+                if (!dashboardRes.ok) {
+                    if (dashboardRes.status === 401) {
+                        logout();
+                        return;
+                    }
+                    throw new Error('Failed to load dashboard');
+                }
+                
+                const dashData = await dashboardRes.json();
+                
+                // 期間指定データ
+                const analyticsRes = await fetch(
+                    `${API_BASE}/api/admin/analytics?startDate=${startDate}&endDate=${endDate}`,
+                    { headers: { 'X-API-Key': apiKey } }
+                );
+                const anaData = await analyticsRes.json();
+                
+                // 統計表示
+                document.getElementById('totalViews').textContent = dashData.totalViews.toLocaleString();
+                document.getElementById('todayViews').textContent = dashData.todayViews.toLocaleString();
+                document.getElementById('totalDiagnosis').textContent = dashData.totalDiagnosis.toLocaleString();
+                document.getElementById('todayDiagnosis').textContent = dashData.todayDiagnosis.toLocaleString();
+                
+                document.getElementById('periodViews').textContent = anaData.periodViews.toLocaleString();
+                document.getElementById('periodDiagnosis').textContent = anaData.periodDiagnosis.toLocaleString();
+                
+                // タイプ別統計
+                renderTypeStats(anaData.typeStats, anaData.periodDiagnosis);
+                
+                // トレンドチャート
+                renderTrendChart(anaData.dailyViews, anaData.dailyDiagnosis);
+                
+                // 最近の診断結果
+                const recentRes = await fetch(`${API_BASE}/api/admin/diagnosis/recent?limit=20`, {
+                    headers: { 'X-API-Key': apiKey }
+                });
+                const recentData = await recentRes.json();
+                renderRecentList(recentData);
+                
+            } catch (error) {
+                console.error('Error loading overview:', error);
+            }
+        }
+        
+        // 詳細分析読み込み
+        async function loadAnalytics(startDate, endDate) {
+            try {
+                // デバイス分析
+                const deviceRes = await fetch(
+                    `${API_BASE}/api/admin/analytics/devices?startDate=${startDate}&endDate=${endDate}`,
+                    { headers: { 'X-API-Key': apiKey } }
+                );
+                const deviceData = await deviceRes.json();
+                renderDeviceChart(deviceData);
+                
+                // 流入元分析
+                const refRes = await fetch(
+                    `${API_BASE}/api/admin/analytics/referrers?startDate=${startDate}&endDate=${endDate}`,
+                    { headers: { 'X-API-Key': apiKey } }
+                );
+                const refData = await refRes.json();
+                renderReferrerList(refData.referrers);
+                
+                // ページ別分析
+                const pageRes = await fetch(
+                    `${API_BASE}/api/admin/analytics/pages?startDate=${startDate}&endDate=${endDate}`,
+                    { headers: { 'X-API-Key': apiKey } }
+                );
+                const pageData = await pageRes.json();
+                renderPageStats(pageData.pages);
+                
+                // タイプ分布円グラフ
+                const analyticsRes = await fetch(
+                    `${API_BASE}/api/admin/analytics?startDate=${startDate}&endDate=${endDate}`,
+                    { headers: { 'X-API-Key': apiKey } }
+                );
+                const anaData = await analyticsRes.json();
+                renderTypePieChart(anaData.typeStats);
+                
+            } catch (error) {
+                console.error('Error loading analytics:', error);
+            }
+        }
+        
+        // コンバージョン読み込み
+        async function loadConversion(startDate, endDate) {
+            try {
+                const res = await fetch(
+                    `${API_BASE}/api/admin/analytics/conversion?startDate=${startDate}&endDate=${endDate}`,
+                    { headers: { 'X-API-Key': apiKey } }
+                );
                 const data = await res.json();
-                document.getElementById('totalViews').textContent = data.totalViews.toLocaleString();
-                document.getElementById('todayViews').textContent = data.todayViews.toLocaleString();
-                document.getElementById('totalDiagnosis').textContent = data.totalDiagnosis.toLocaleString();
-                document.getElementById('todayDiagnosis').textContent = data.todayDiagnosis.toLocaleString();
-                renderTypeStats(data.typeStats);
-                const recentRes = await fetch(`${API_BASE}/api/admin/diagnosis/recent?limit=20`, { headers: { 'X-API-Key': apiKey } });
-                renderRecentList(await recentRes.json());
-            } catch (error) { console.error('Error:', error); }
+                
+                document.getElementById('quizStartRate').textContent = data.quizStartRate + '%';
+                document.getElementById('quizCompleteRate').textContent = data.quizCompleteRate + '%';
+                document.getElementById('conversionRate').textContent = data.conversionRate + '%';
+                
+                renderFunnel(data.funnel);
+                renderConversionTrendChart(startDate, endDate);
+                
+            } catch (error) {
+                console.error('Error loading conversion:', error);
+            }
         }
-        function renderTypeStats(stats) {
+        
+        // 行動分析読み込み
+        async function loadBehavior(startDate, endDate) {
+            try {
+                // 時間帯別
+                const hourlyRes = await fetch(
+                    `${API_BASE}/api/admin/analytics/hourly?startDate=${startDate}&endDate=${endDate}`,
+                    { headers: { 'X-API-Key': apiKey } }
+                );
+                const hourlyData = await hourlyRes.json();
+                renderHourlyChart(hourlyData);
+                
+                // 曜日別
+                const weekdayRes = await fetch(
+                    `${API_BASE}/api/admin/analytics/weekday?startDate=${startDate}&endDate=${endDate}`,
+                    { headers: { 'X-API-Key': apiKey } }
+                );
+                const weekdayData = await weekdayRes.json();
+                renderWeekdayChart(weekdayData);
+                
+                // ヒートマップ
+                const heatmapRes = await fetch(
+                    `${API_BASE}/api/admin/analytics/heatmap?startDate=${startDate}&endDate=${endDate}`,
+                    { headers: { 'X-API-Key': apiKey } }
+                );
+                const heatmapData = await heatmapRes.json();
+                renderHeatmap(heatmapData);
+                
+            } catch (error) {
+                console.error('Error loading behavior:', error);
+            }
+        }
+        
+        // タイプ別統計の描画
+        function renderTypeStats(stats, total) {
             const container = document.getElementById('typeStats');
-            if (!stats || stats.length === 0) { container.innerHTML = '<div class="no-data">まだデータがありません</div>'; return; }
-            container.innerHTML = stats.map(item => `<div class="type-item"><div class="code">${item.type_code}</div><div class="count">${item.count}</div><div class="name">${item.type_name}</div></div>`).join('');
+            
+            if (!stats || stats.length === 0) {
+                container.innerHTML = '<div class="no-data">まだデータがありません</div>';
+                return;
+            }
+            
+            container.innerHTML = stats.map(item => {
+                const percent = total > 0 ? Math.round(item.count / total * 100) : 0;
+                return `
+                    <div class="type-item">
+                        <div class="code">${item.type_code}</div>
+                        <div class="count">${item.count}</div>
+                        <div class="name">${item.type_name}</div>
+                        <div class="percent">${percent}%</div>
+                    </div>
+                `;
+            }).join('');
         }
+        
+        // トレンドチャートの描画
+        function renderTrendChart(dailyViews, dailyDiagnosis) {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            
+            if (charts.trend) charts.trend.destroy();
+            
+            const labels = dailyViews.map(d => {
+                const date = new Date(d.date);
+                return `${date.getMonth() + 1}/${date.getDate()}`;
+            });
+            
+            charts.trend = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'アクセス数',
+                            data: dailyViews.map(d => d.count),
+                            borderColor: '#7EB8DA',
+                            backgroundColor: 'rgba(126, 184, 218, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: '診断数',
+                            data: dailyDiagnosis.map(d => d.count),
+                            borderColor: '#F5A5B8',
+                            backgroundColor: 'rgba(245, 165, 184, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+        
+        // 最近の診断結果リスト
         function renderRecentList(data) {
             const container = document.getElementById('recentList');
-            if (!data || data.length === 0) { container.innerHTML = '<div class="no-data">まだデータがありません</div>'; return; }
-            container.innerHTML = data.map(item => { const date = new Date(item.created_at); return `<div class="recent-item"><div><span class="type">${item.type_code}</span> ${item.type_name}</div><div class="time">${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2,'0')}</div></div>`; }).join('');
+            
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div class="no-data">まだ診断結果がありません</div>';
+                return;
+            }
+            
+            container.innerHTML = data.map(item => {
+                const date = new Date(item.created_at);
+                const timeStr = `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+                return `
+                    <div class="recent-item">
+                        <div>
+                            <span class="type">${item.type_code}</span>
+                            <span>${item.type_name}</span>
+                        </div>
+                        <div class="time">${timeStr}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // デバイスチャート
+        function renderDeviceChart(data) {
+            const container = document.getElementById('deviceChart');
+            const { devices, percentages } = data;
+            const total = devices.mobile + devices.tablet + devices.desktop;
+            
+            container.innerHTML = `
+                <canvas id="devicePieCanvas" style="max-width: 200px; max-height: 200px;"></canvas>
+                <div class="device-legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #7EB8DA;"></div>
+                        <span class="legend-label">📱 モバイル</span>
+                        <span class="legend-value">${devices.mobile.toLocaleString()} (${percentages.mobile}%)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #F5A5B8;"></div>
+                        <span class="legend-label">📲 タブレット</span>
+                        <span class="legend-value">${devices.tablet.toLocaleString()} (${percentages.tablet}%)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #6BCB9E;"></div>
+                        <span class="legend-label">🖥️ デスクトップ</span>
+                        <span class="legend-value">${devices.desktop.toLocaleString()} (${percentages.desktop}%)</span>
+                    </div>
+                </div>
+            `;
+            
+            const ctx = document.getElementById('devicePieCanvas').getContext('2d');
+            if (charts.device) charts.device.destroy();
+            
+            charts.device = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['モバイル', 'タブレット', 'デスクトップ'],
+                    datasets: [{
+                        data: [devices.mobile, devices.tablet, devices.desktop],
+                        backgroundColor: ['#7EB8DA', '#F5A5B8', '#6BCB9E']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+        
+        // 流入元リスト
+        function renderReferrerList(referrers) {
+            const container = document.getElementById('referrerList');
+            
+            if (!referrers || referrers.length === 0) {
+                container.innerHTML = '<div class="no-data">データがありません</div>';
+                return;
+            }
+            
+            const maxCount = Math.max(...referrers.map(r => r.count));
+            
+            container.innerHTML = referrers.map((ref, i) => `
+                <div class="referrer-item">
+                    <div class="referrer-rank ${i < 3 ? 'top' : ''}">${i + 1}</div>
+                    <div class="referrer-domain">${ref.domain}</div>
+                    <div class="referrer-bar-container">
+                        <div class="referrer-bar" style="width: ${ref.count / maxCount * 100}%"></div>
+                    </div>
+                    <div class="referrer-count">${ref.count.toLocaleString()}</div>
+                </div>
+            `).join('');
+        }
+        
+        // ページ別統計
+        function renderPageStats(pages) {
+            const container = document.getElementById('pageStats');
+            
+            if (!pages || pages.length === 0) {
+                container.innerHTML = '<div class="no-data">データがありません</div>';
+                return;
+            }
+            
+            const pageNames = {
+                'home': '🏠 ホーム',
+                'quiz': '📝 診断',
+                'result': '🎯 結果',
+                'theory': '📖 診断とは',
+                'characters': '👥 タイプ一覧',
+                'character-detail': '👤 タイプ詳細',
+                'contact': '📧 お問い合わせ'
+            };
+            
+            container.innerHTML = pages.map(p => `
+                <div class="page-item">
+                    <div class="page-name">${pageNames[p.page] || p.page}</div>
+                    <div class="page-count">${p.count.toLocaleString()}</div>
+                </div>
+            `).join('');
+        }
+        
+        // タイプ分布円グラフ
+        function renderTypePieChart(stats) {
+            const ctx = document.getElementById('typePieChart').getContext('2d');
+            
+            if (charts.typePie) charts.typePie.destroy();
+            
+            if (!stats || stats.length === 0) return;
+            
+            const colors = [
+                '#7EB8DA', '#F5A5B8', '#6BCB9E', '#FFD93D',
+                '#6C5CE7', '#A29BFE', '#FD79A8', '#00B894',
+                '#E17055', '#74B9FF', '#55EFC4', '#FDCB6E',
+                '#E84393', '#00CEC9', '#FF7675', '#636E72'
+            ];
+            
+            charts.typePie = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: stats.map(s => s.type_code),
+                    datasets: [{
+                        data: stats.map(s => s.count),
+                        backgroundColor: colors.slice(0, stats.length)
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: { font: { size: 11 } }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // ファネル
+        function renderFunnel(funnel) {
+            const container = document.getElementById('funnel');
+            const maxCount = Math.max(...funnel.map(f => f.count));
+            
+            container.innerHTML = funnel.map((step, i) => {
+                const width = maxCount > 0 ? (step.count / maxCount * 100) : 0;
+                const prevCount = i > 0 ? funnel[i - 1].count : step.count;
+                const dropRate = prevCount > 0 ? Math.round((1 - step.count / prevCount) * 100) : 0;
+                
+                return `
+                    <div class="funnel-step">
+                        <div class="funnel-label">${step.stage}</div>
+                        <div class="funnel-bar" style="width: ${Math.max(width, 10)}%">${step.count}</div>
+                        <div class="funnel-value">${step.count.toLocaleString()}</div>
+                        ${i > 0 ? `<div class="funnel-rate">-${dropRate}%</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // コンバージョントレンドチャート
+        async function renderConversionTrendChart(startDate, endDate) {
+            const ctx = document.getElementById('conversionTrendChart').getContext('2d');
+            
+            if (charts.conversionTrend) charts.conversionTrend.destroy();
+            
+            // 日別データを取得
+            const analyticsRes = await fetch(
+                `${API_BASE}/api/admin/analytics?startDate=${startDate}&endDate=${endDate}`,
+                { headers: { 'X-API-Key': apiKey } }
+            );
+            const data = await analyticsRes.json();
+            
+            const labels = data.dailyViews.map(d => {
+                const date = new Date(d.date);
+                return `${date.getMonth() + 1}/${date.getDate()}`;
+            });
+            
+            // コンバージョン率計算
+            const conversionRates = data.dailyViews.map((v, i) => {
+                const diagnosis = data.dailyDiagnosis.find(d => d.date === v.date);
+                const diagCount = diagnosis ? diagnosis.count : 0;
+                return v.count > 0 ? Math.round(diagCount / v.count * 100) : 0;
+            });
+            
+            charts.conversionTrend = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'CVR (%)',
+                        data: conversionRates,
+                        borderColor: '#6BCB9E',
+                        backgroundColor: 'rgba(107, 203, 158, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { callback: val => val + '%' }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 時間帯別チャート
+        function renderHourlyChart(data) {
+            const ctx = document.getElementById('hourlyChart').getContext('2d');
+            
+            if (charts.hourly) charts.hourly.destroy();
+            
+            const labels = Array.from({ length: 24 }, (_, i) => `${i}時`);
+            const viewsData = Array(24).fill(0);
+            const diagnosisData = Array(24).fill(0);
+            
+            data.hourlyViews.forEach(d => {
+                viewsData[parseInt(d.hour)] = d.count;
+            });
+            data.hourlyDiagnosis.forEach(d => {
+                diagnosisData[parseInt(d.hour)] = d.count;
+            });
+            
+            charts.hourly = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'アクセス',
+                            data: viewsData,
+                            backgroundColor: 'rgba(126, 184, 218, 0.7)'
+                        },
+                        {
+                            label: '診断',
+                            data: diagnosisData,
+                            backgroundColor: 'rgba(245, 165, 184, 0.7)'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+        
+        // 曜日別チャート
+        function renderWeekdayChart(data) {
+            const ctx = document.getElementById('weekdayChart').getContext('2d');
+            
+            if (charts.weekday) charts.weekday.destroy();
+            
+            const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+            const viewsData = Array(7).fill(0);
+            const diagnosisData = Array(7).fill(0);
+            
+            data.weekdayViews.forEach(d => {
+                viewsData[parseInt(d.weekday)] = d.count;
+            });
+            data.weekdayDiagnosis.forEach(d => {
+                diagnosisData[parseInt(d.weekday)] = d.count;
+            });
+            
+            charts.weekday = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: dayNames,
+                    datasets: [
+                        {
+                            label: 'アクセス',
+                            data: viewsData,
+                            backgroundColor: 'rgba(126, 184, 218, 0.7)'
+                        },
+                        {
+                            label: '診断',
+                            data: diagnosisData,
+                            backgroundColor: 'rgba(245, 165, 184, 0.7)'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+        
+        // ヒートマップ
+        function renderHeatmap(data) {
+            const container = document.getElementById('heatmapContainer');
+            const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+            
+            // ヘッダー（時間）
+            let html = '<div class="heatmap"><div class="heatmap-header"></div>';
+            for (let h = 0; h < 24; h++) {
+                html += `<div class="heatmap-header">${h}</div>`;
+            }
+            
+            // 各曜日の行
+            for (let d = 0; d < 7; d++) {
+                html += `<div class="heatmap-row-label">${dayNames[d]}</div>`;
+                for (let h = 0; h < 24; h++) {
+                    const value = data.matrix[d][h];
+                    const intensity = data.maxValue > 0 ? value / data.maxValue : 0;
+                    const color = getHeatmapColor(intensity);
+                    html += `<div class="heatmap-cell" style="background: ${color};" title="${dayNames[d]} ${h}時: ${value}件"></div>`;
+                }
+            }
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+        
+        function getHeatmapColor(intensity) {
+            if (intensity === 0) return '#f0f0f0';
+            const r = Math.round(126 + (245 - 126) * intensity);
+            const g = Math.round(184 - (184 - 165) * intensity);
+            const b = Math.round(218 - (218 - 184) * intensity);
+            return `rgba(${r}, ${g}, ${b}, ${0.3 + intensity * 0.7})`;
+        }
+        
+        // CSVエクスポート
+        function exportDiagnosis() {
+            const { startDate, endDate } = getDateRange();
+            window.open(`${API_BASE}/api/admin/export/diagnosis?startDate=${startDate}&endDate=${endDate}&apiKey=${apiKey}`, '_blank');
+            
+            // APIキーをヘッダーで送る代わりにフォームで送信
+            const form = document.createElement('form');
+            form.method = 'GET';
+            form.action = `${API_BASE}/api/admin/export/diagnosis`;
+            form.target = '_blank';
+            
+            const params = { startDate, endDate };
+            for (const key in params) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = params[key];
+                form.appendChild(input);
+            }
+            
+            // APIキーをクエリに追加してダウンロード
+            const url = `${API_BASE}/api/admin/export/diagnosis?startDate=${startDate}&endDate=${endDate}`;
+            
+            fetch(url, {
+                headers: { 'X-API-Key': apiKey }
+            })
+            .then(res => res.blob())
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `diagnosis_${startDate}_${endDate}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+            })
+            .catch(err => alert('エクスポートに失敗しました'));
+        }
+        
+        function exportPageviews() {
+            const { startDate, endDate } = getDateRange();
+            
+            fetch(`${API_BASE}/api/admin/export/pageviews?startDate=${startDate}&endDate=${endDate}`, {
+                headers: { 'X-API-Key': apiKey }
+            })
+            .then(res => res.blob())
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `pageviews_${startDate}_${endDate}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+            })
+            .catch(err => alert('エクスポートに失敗しました'));
         }
     </script>
 </body>

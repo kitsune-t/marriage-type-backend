@@ -42,8 +42,13 @@ db.exec(`
 app.use(cors());
 app.use(express.json());
 
-// 管理画面の静的ファイル配信
+// 静的ファイル配信
 app.use('/admin', express.static(path.join(__dirname, 'admin-panel')));
+
+// ヘルスチェック（Render用）
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // ==========================================
 // API: データ記録
@@ -185,6 +190,445 @@ app.get('/api/admin/diagnosis/recent', adminAuth, (req, res) => {
     } catch (error) {
         console.error('Error getting recent diagnosis:', error);
         res.status(500).json({ error: 'Failed to get recent diagnosis' });
+    }
+});
+
+// ==========================================
+// API: 高度な分析機能
+// ==========================================
+
+// 期間指定ダッシュボード
+app.get('/api/admin/analytics', adminAuth, (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const end = endDate || new Date().toISOString().split('T')[0];
+        
+        // 期間内のアクセス数
+        const periodViews = db.prepare(`
+            SELECT COUNT(*) as count FROM page_views 
+            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+        `).get(start, end);
+        
+        // 期間内の診断数
+        const periodDiagnosis = db.prepare(`
+            SELECT COUNT(*) as count FROM diagnosis_results 
+            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+        `).get(start, end);
+        
+        // 日別アクセス推移
+        const dailyViews = db.prepare(`
+            SELECT DATE(created_at) as date, COUNT(*) as count 
+            FROM page_views 
+            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+            GROUP BY DATE(created_at)
+            ORDER BY date
+        `).all(start, end);
+        
+        // 日別診断推移
+        const dailyDiagnosis = db.prepare(`
+            SELECT DATE(created_at) as date, COUNT(*) as count 
+            FROM diagnosis_results 
+            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+            GROUP BY DATE(created_at)
+            ORDER BY date
+        `).all(start, end);
+        
+        // タイプ別統計（期間内）
+        const typeStats = db.prepare(`
+            SELECT type_code, type_name, COUNT(*) as count 
+            FROM diagnosis_results 
+            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+            GROUP BY type_code 
+            ORDER BY count DESC
+        `).all(start, end);
+        
+        res.json({
+            period: { start, end },
+            periodViews: periodViews.count,
+            periodDiagnosis: periodDiagnosis.count,
+            dailyViews,
+            dailyDiagnosis,
+            typeStats
+        });
+    } catch (error) {
+        console.error('Error getting analytics:', error);
+        res.status(500).json({ error: 'Failed to get analytics' });
+    }
+});
+
+// 時間帯別分析
+app.get('/api/admin/analytics/hourly', adminAuth, (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const start = startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const end = endDate || new Date().toISOString().split('T')[0];
+        
+        // 時間帯別アクセス
+        const hourlyViews = db.prepare(`
+            SELECT strftime('%H', created_at) as hour, COUNT(*) as count 
+            FROM page_views 
+            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+            GROUP BY hour
+            ORDER BY hour
+        `).all(start, end);
+        
+        // 時間帯別診断
+        const hourlyDiagnosis = db.prepare(`
+            SELECT strftime('%H', created_at) as hour, COUNT(*) as count 
+            FROM diagnosis_results 
+            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+            GROUP BY hour
+            ORDER BY hour
+        `).all(start, end);
+        
+        res.json({ hourlyViews, hourlyDiagnosis });
+    } catch (error) {
+        console.error('Error getting hourly analytics:', error);
+        res.status(500).json({ error: 'Failed to get hourly analytics' });
+    }
+});
+
+// 曜日別分析
+app.get('/api/admin/analytics/weekday', adminAuth, (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const end = endDate || new Date().toISOString().split('T')[0];
+        
+        // 曜日別アクセス (0=日曜, 6=土曜)
+        const weekdayViews = db.prepare(`
+            SELECT strftime('%w', created_at) as weekday, COUNT(*) as count 
+            FROM page_views 
+            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+            GROUP BY weekday
+            ORDER BY weekday
+        `).all(start, end);
+        
+        // 曜日別診断
+        const weekdayDiagnosis = db.prepare(`
+            SELECT strftime('%w', created_at) as weekday, COUNT(*) as count 
+            FROM diagnosis_results 
+            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+            GROUP BY weekday
+            ORDER BY weekday
+        `).all(start, end);
+        
+        res.json({ weekdayViews, weekdayDiagnosis });
+    } catch (error) {
+        console.error('Error getting weekday analytics:', error);
+        res.status(500).json({ error: 'Failed to get weekday analytics' });
+    }
+});
+
+// デバイス分析（User-Agentから推定）
+app.get('/api/admin/analytics/devices', adminAuth, (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const end = endDate || new Date().toISOString().split('T')[0];
+        
+        const allUserAgents = db.prepare(`
+            SELECT user_agent FROM page_views 
+            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+        `).all(start, end);
+        
+        const devices = { mobile: 0, tablet: 0, desktop: 0 };
+        
+        allUserAgents.forEach(row => {
+            const ua = (row.user_agent || '').toLowerCase();
+            if (/ipad|tablet|playbook|silk/.test(ua)) {
+                devices.tablet++;
+            } else if (/mobile|iphone|ipod|android|blackberry|opera mini|iemobile/.test(ua)) {
+                devices.mobile++;
+            } else {
+                devices.desktop++;
+            }
+        });
+        
+        const total = devices.mobile + devices.tablet + devices.desktop;
+        
+        res.json({
+            devices,
+            percentages: {
+                mobile: total ? Math.round(devices.mobile / total * 100) : 0,
+                tablet: total ? Math.round(devices.tablet / total * 100) : 0,
+                desktop: total ? Math.round(devices.desktop / total * 100) : 0
+            }
+        });
+    } catch (error) {
+        console.error('Error getting device analytics:', error);
+        res.status(500).json({ error: 'Failed to get device analytics' });
+    }
+});
+
+// 流入元分析
+app.get('/api/admin/analytics/referrers', adminAuth, (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const end = endDate || new Date().toISOString().split('T')[0];
+        
+        const allReferrers = db.prepare(`
+            SELECT referrer FROM page_views 
+            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+            AND referrer IS NOT NULL AND referrer != ''
+        `).all(start, end);
+        
+        const referrerCounts = {};
+        
+        allReferrers.forEach(row => {
+            try {
+                const url = new URL(row.referrer);
+                const domain = url.hostname.replace('www.', '');
+                referrerCounts[domain] = (referrerCounts[domain] || 0) + 1;
+            } catch {
+                referrerCounts['direct'] = (referrerCounts['direct'] || 0) + 1;
+            }
+        });
+        
+        // 直接流入の数も追加
+        const directCount = db.prepare(`
+            SELECT COUNT(*) as count FROM page_views 
+            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+            AND (referrer IS NULL OR referrer = '')
+        `).get(start, end);
+        
+        referrerCounts['direct'] = (referrerCounts['direct'] || 0) + directCount.count;
+        
+        // 上位10件を返す
+        const sorted = Object.entries(referrerCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10)
+            .map(([domain, count]) => ({ domain, count }));
+        
+        res.json({ referrers: sorted });
+    } catch (error) {
+        console.error('Error getting referrer analytics:', error);
+        res.status(500).json({ error: 'Failed to get referrer analytics' });
+    }
+});
+
+// ページ別アクセス分析
+app.get('/api/admin/analytics/pages', adminAuth, (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const end = endDate || new Date().toISOString().split('T')[0];
+        
+        const pageStats = db.prepare(`
+            SELECT page, COUNT(*) as count 
+            FROM page_views 
+            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+            GROUP BY page 
+            ORDER BY count DESC
+        `).all(start, end);
+        
+        res.json({ pages: pageStats });
+    } catch (error) {
+        console.error('Error getting page analytics:', error);
+        res.status(500).json({ error: 'Failed to get page analytics' });
+    }
+});
+
+// コンバージョン分析
+app.get('/api/admin/analytics/conversion', adminAuth, (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const end = endDate || new Date().toISOString().split('T')[0];
+        
+        // ホームページのアクセス
+        const homeViews = db.prepare(`
+            SELECT COUNT(*) as count FROM page_views 
+            WHERE page = 'home' AND DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+        `).get(start, end);
+        
+        // クイズ開始
+        const quizViews = db.prepare(`
+            SELECT COUNT(*) as count FROM page_views 
+            WHERE page = 'quiz' AND DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+        `).get(start, end);
+        
+        // 結果ページ
+        const resultViews = db.prepare(`
+            SELECT COUNT(*) as count FROM page_views 
+            WHERE page = 'result' AND DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+        `).get(start, end);
+        
+        // 診断完了数
+        const completed = db.prepare(`
+            SELECT COUNT(*) as count FROM diagnosis_results 
+            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+        `).get(start, end);
+        
+        const funnel = [
+            { stage: 'ホーム', count: homeViews.count },
+            { stage: 'クイズ開始', count: quizViews.count },
+            { stage: '結果表示', count: resultViews.count },
+            { stage: '診断完了', count: completed.count }
+        ];
+        
+        // コンバージョン率計算
+        const conversionRate = homeViews.count > 0 
+            ? Math.round(completed.count / homeViews.count * 100 * 10) / 10 
+            : 0;
+        
+        const quizStartRate = homeViews.count > 0
+            ? Math.round(quizViews.count / homeViews.count * 100 * 10) / 10
+            : 0;
+            
+        const quizCompleteRate = quizViews.count > 0
+            ? Math.round(completed.count / quizViews.count * 100 * 10) / 10
+            : 0;
+        
+        res.json({
+            funnel,
+            conversionRate,
+            quizStartRate,
+            quizCompleteRate
+        });
+    } catch (error) {
+        console.error('Error getting conversion analytics:', error);
+        res.status(500).json({ error: 'Failed to get conversion analytics' });
+    }
+});
+
+// タイプ別トレンド分析
+app.get('/api/admin/analytics/type-trend', adminAuth, (req, res) => {
+    try {
+        const { startDate, endDate, typeCode } = req.query;
+        const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const end = endDate || new Date().toISOString().split('T')[0];
+        
+        let query = `
+            SELECT DATE(created_at) as date, type_code, COUNT(*) as count 
+            FROM diagnosis_results 
+            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+        `;
+        const params = [start, end];
+        
+        if (typeCode) {
+            query += ` AND type_code = ?`;
+            params.push(typeCode);
+        }
+        
+        query += ` GROUP BY date, type_code ORDER BY date, type_code`;
+        
+        const trends = db.prepare(query).all(...params);
+        
+        res.json({ trends });
+    } catch (error) {
+        console.error('Error getting type trend:', error);
+        res.status(500).json({ error: 'Failed to get type trend' });
+    }
+});
+
+// ヒートマップ用データ（曜日 x 時間帯）
+app.get('/api/admin/analytics/heatmap', adminAuth, (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const end = endDate || new Date().toISOString().split('T')[0];
+        
+        const heatmapData = db.prepare(`
+            SELECT 
+                strftime('%w', created_at) as weekday,
+                strftime('%H', created_at) as hour,
+                COUNT(*) as count 
+            FROM page_views 
+            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+            GROUP BY weekday, hour
+            ORDER BY weekday, hour
+        `).all(start, end);
+        
+        // 7x24のマトリックスを作成
+        const matrix = Array(7).fill(null).map(() => Array(24).fill(0));
+        
+        heatmapData.forEach(row => {
+            const weekday = parseInt(row.weekday);
+            const hour = parseInt(row.hour);
+            matrix[weekday][hour] = row.count;
+        });
+        
+        res.json({ matrix, maxValue: Math.max(...heatmapData.map(d => d.count), 1) });
+    } catch (error) {
+        console.error('Error getting heatmap data:', error);
+        res.status(500).json({ error: 'Failed to get heatmap data' });
+    }
+});
+
+// CSVエクスポート - 診断結果
+app.get('/api/admin/export/diagnosis', adminAuth, (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const start = startDate || '2020-01-01';
+        const end = endDate || new Date().toISOString().split('T')[0];
+        
+        const results = db.prepare(`
+            SELECT id, type_code, type_name, scores, user_agent, created_at 
+            FROM diagnosis_results 
+            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+            ORDER BY created_at DESC
+        `).all(start, end);
+        
+        // CSV生成
+        const headers = ['ID', 'タイプコード', 'タイプ名', 'スコア', 'ユーザーエージェント', '日時'];
+        const csv = [
+            headers.join(','),
+            ...results.map(r => [
+                r.id,
+                r.type_code,
+                `"${r.type_name}"`,
+                `"${r.scores || ''}"`,
+                `"${(r.user_agent || '').replace(/"/g, '""')}"`,
+                r.created_at
+            ].join(','))
+        ].join('\n');
+        
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename=diagnosis_${start}_${end}.csv`);
+        res.send('\uFEFF' + csv); // BOM付きUTF-8
+    } catch (error) {
+        console.error('Error exporting diagnosis:', error);
+        res.status(500).json({ error: 'Failed to export diagnosis' });
+    }
+});
+
+// CSVエクスポート - ページビュー
+app.get('/api/admin/export/pageviews', adminAuth, (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const start = startDate || '2020-01-01';
+        const end = endDate || new Date().toISOString().split('T')[0];
+        
+        const results = db.prepare(`
+            SELECT id, page, user_agent, referrer, ip, created_at 
+            FROM page_views 
+            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+            ORDER BY created_at DESC
+        `).all(start, end);
+        
+        // CSV生成
+        const headers = ['ID', 'ページ', 'ユーザーエージェント', 'リファラー', 'IP', '日時'];
+        const csv = [
+            headers.join(','),
+            ...results.map(r => [
+                r.id,
+                r.page,
+                `"${(r.user_agent || '').replace(/"/g, '""')}"`,
+                `"${(r.referrer || '').replace(/"/g, '""')}"`,
+                `"${r.ip || ''}"`,
+                r.created_at
+            ].join(','))
+        ].join('\n');
+        
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename=pageviews_${start}_${end}.csv`);
+        res.send('\uFEFF' + csv); // BOM付きUTF-8
+    } catch (error) {
+        console.error('Error exporting pageviews:', error);
+        res.status(500).json({ error: 'Failed to export pageviews' });
     }
 });
 
