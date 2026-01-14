@@ -975,13 +975,28 @@
             document.getElementById('loginContainer').style.display = 'flex';
             document.getElementById('dashboard').style.display = 'none';
             document.getElementById('apiKeyInput').value = '';
+            
+            // 自動更新を停止
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
         }
         
         // ダッシュボード表示
+        let autoRefreshInterval = null;
+        
         function showDashboard() {
             document.getElementById('loginContainer').style.display = 'none';
             document.getElementById('dashboard').style.display = 'block';
             loadAllData();
+            
+            // 自動更新: 30秒ごとにデータを更新
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+            autoRefreshInterval = setInterval(() => {
+                loadAllData();
+                console.log('🔄 自動更新:', new Date().toLocaleTimeString());
+            }, 30000); // 30秒 = 30000ミリ秒
         }
         
         // タブ切り替え
