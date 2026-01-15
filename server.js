@@ -1,42 +1,20 @@
 /**
  * マリッジタイプ診断 - 管理用バックエンドサーバー
+ * Supabase版（データ永続化対応）
  */
 
 const express = require('express');
 const cors = require('cors');
-const Database = require('better-sqlite3');
 const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// データベース初期化
-const db = new Database(path.join(__dirname, 'data.db'));
-
-// テーブル作成
-db.exec(`
-    CREATE TABLE IF NOT EXISTS page_views (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        page TEXT NOT NULL,
-        user_agent TEXT,
-        referrer TEXT,
-        ip TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-    
-    CREATE TABLE IF NOT EXISTS diagnosis_results (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        type_code TEXT NOT NULL,
-        type_name TEXT NOT NULL,
-        scores TEXT,
-        user_agent TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-    
-    CREATE INDEX IF NOT EXISTS idx_page_views_created_at ON page_views(created_at);
-    CREATE INDEX IF NOT EXISTS idx_diagnosis_results_created_at ON diagnosis_results(created_at);
-    CREATE INDEX IF NOT EXISTS idx_diagnosis_results_type_code ON diagnosis_results(type_code);
-`);
+// Supabase設定
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://xflhnfrtbkjvopaueitb.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_KEY || 'sb_secret_oFVC9jo-NVJy8zQT087UgQ_Q8pHDsAx';
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ミドルウェア
 app.use(cors());
@@ -47,7 +25,7 @@ app.use('/admin', express.static(path.join(__dirname, 'admin-panel')));
 
 // ヘルスチェック（Render用）
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({ status: 'ok', timestamp: new Date().toISOString(), database: 'supabase' });
 });
 
 // ==========================================
@@ -55,19 +33,18 @@ app.get('/api/health', (req, res) => {
 // ==========================================
 
 // ページビュー記録
-app.post('/api/track/pageview', (req, res) => {
+app.post('/api/track/pageview', async (req, res) => {
     try {
         const { page } = req.body;
         const userAgent = req.headers['user-agent'] || '';
         const referrer = req.headers['referer'] || '';
         const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
         
-        const stmt = db.prepare(`
-            INSERT INTO page_views (page, user_agent, referrer, ip)
-            VALUES (?, ?, ?, ?)
-        `);
-        stmt.run(page, userAgent, referrer, ip);
+        const { error } = await supabase
+            .from('page_views')
+            .insert({ page, user_agent: userAgent, referrer, ip });
         
+        if (error) throw error;
         res.json({ success: true });
     } catch (error) {
         console.error('Error tracking pageview:', error);
@@ -76,17 +53,21 @@ app.post('/api/track/pageview', (req, res) => {
 });
 
 // 診断結果記録
-app.post('/api/track/diagnosis', (req, res) => {
+app.post('/api/track/diagnosis', async (req, res) => {
     try {
         const { typeCode, typeName, scores } = req.body;
         const userAgent = req.headers['user-agent'] || '';
         
-        const stmt = db.prepare(`
-            INSERT INTO diagnosis_results (type_code, type_name, scores, user_agent)
-            VALUES (?, ?, ?, ?)
-        `);
-        stmt.run(typeCode, typeName, JSON.stringify(scores), userAgent);
+        const { error } = await supabase
+            .from('diagnosis_results')
+            .insert({ 
+                type_code: typeCode, 
+                type_name: typeName, 
+                scores: JSON.stringify(scores), 
+                user_agent: userAgent 
+            });
         
+        if (error) throw error;
         res.json({ success: true });
     } catch (error) {
         console.error('Error tracking diagnosis:', error);
@@ -98,7 +79,7 @@ app.post('/api/track/diagnosis', (req, res) => {
 // API: 統計データ取得（管理画面用）
 // ==========================================
 
-// 管理者認証ミドルウェア（シンプルなAPIキー方式）
+// 管理者認証ミドルウェア
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY || 'marriage-type-admin-2026';
 
 const adminAuth = (req, res, next) => {
@@ -110,63 +91,89 @@ const adminAuth = (req, res, next) => {
 };
 
 // ダッシュボード概要
-app.get('/api/admin/dashboard', adminAuth, (req, res) => {
+app.get('/api/admin/dashboard', adminAuth, async (req, res) => {
     try {
-        // 今日の日付
         const today = new Date().toISOString().split('T')[0];
+        const todayStart = today + 'T00:00:00';
+        const todayEnd = today + 'T23:59:59';
         
         // 総アクセス数
-        const totalViews = db.prepare('SELECT COUNT(*) as count FROM page_views').get();
+        const { count: totalViews } = await supabase
+            .from('page_views')
+            .select('*', { count: 'exact', head: true });
         
         // 今日のアクセス数
-        const todayViews = db.prepare(`
-            SELECT COUNT(*) as count FROM page_views 
-            WHERE DATE(created_at) = DATE(?)
-        `).get(today);
+        const { count: todayViews } = await supabase
+            .from('page_views')
+            .select('*', { count: 'exact', head: true })
+            .gte('created_at', todayStart)
+            .lte('created_at', todayEnd);
         
         // 総診断数
-        const totalDiagnosis = db.prepare('SELECT COUNT(*) as count FROM diagnosis_results').get();
+        const { count: totalDiagnosis } = await supabase
+            .from('diagnosis_results')
+            .select('*', { count: 'exact', head: true });
         
         // 今日の診断数
-        const todayDiagnosis = db.prepare(`
-            SELECT COUNT(*) as count FROM diagnosis_results 
-            WHERE DATE(created_at) = DATE(?)
-        `).get(today);
+        const { count: todayDiagnosis } = await supabase
+            .from('diagnosis_results')
+            .select('*', { count: 'exact', head: true })
+            .gte('created_at', todayStart)
+            .lte('created_at', todayEnd);
         
         // タイプ別診断数
-        const typeStats = db.prepare(`
-            SELECT type_code, type_name, COUNT(*) as count 
-            FROM diagnosis_results 
-            GROUP BY type_code 
-            ORDER BY count DESC
-        `).all();
+        const { data: diagnosisData } = await supabase
+            .from('diagnosis_results')
+            .select('type_code, type_name');
+        
+        const typeStats = {};
+        (diagnosisData || []).forEach(d => {
+            if (!typeStats[d.type_code]) {
+                typeStats[d.type_code] = { type_code: d.type_code, type_name: d.type_name, count: 0 };
+            }
+            typeStats[d.type_code].count++;
+        });
+        const typeStatsArray = Object.values(typeStats).sort((a, b) => b.count - a.count);
         
         // 過去7日間のアクセス推移
-        const dailyViews = db.prepare(`
-            SELECT DATE(created_at) as date, COUNT(*) as count 
-            FROM page_views 
-            WHERE created_at >= DATE('now', '-7 days')
-            GROUP BY DATE(created_at)
-            ORDER BY date
-        `).all();
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        const { data: viewsData } = await supabase
+            .from('page_views')
+            .select('created_at')
+            .gte('created_at', sevenDaysAgo);
+        
+        const dailyViews = {};
+        (viewsData || []).forEach(v => {
+            const date = v.created_at.split('T')[0];
+            dailyViews[date] = (dailyViews[date] || 0) + 1;
+        });
+        const dailyViewsArray = Object.entries(dailyViews)
+            .map(([date, count]) => ({ date, count }))
+            .sort((a, b) => a.date.localeCompare(b.date));
         
         // 過去7日間の診断数推移
-        const dailyDiagnosis = db.prepare(`
-            SELECT DATE(created_at) as date, COUNT(*) as count 
-            FROM diagnosis_results 
-            WHERE created_at >= DATE('now', '-7 days')
-            GROUP BY DATE(created_at)
-            ORDER BY date
-        `).all();
+        const { data: diagData } = await supabase
+            .from('diagnosis_results')
+            .select('created_at')
+            .gte('created_at', sevenDaysAgo);
+        
+        const dailyDiagnosis = {};
+        (diagData || []).forEach(d => {
+            const date = d.created_at.split('T')[0];
+            dailyDiagnosis[date] = (dailyDiagnosis[date] || 0) + 1;
+        });
+        const dailyDiagnosisArray = Object.entries(dailyDiagnosis)
+            .map(([date, count]) => ({ date, count }))
+            .sort((a, b) => a.date.localeCompare(b.date));
         
         res.json({
-            totalViews: totalViews.count,
-            todayViews: todayViews.count,
-            totalDiagnosis: totalDiagnosis.count,
-            todayDiagnosis: todayDiagnosis.count,
-            typeStats,
-            dailyViews,
-            dailyDiagnosis
+            totalViews: totalViews || 0,
+            todayViews: todayViews || 0,
+            totalDiagnosis: totalDiagnosis || 0,
+            todayDiagnosis: todayDiagnosis || 0,
+            typeStats: typeStatsArray,
+            dailyViews: dailyViewsArray,
+            dailyDiagnosis: dailyDiagnosisArray
         });
     } catch (error) {
         console.error('Error getting dashboard data:', error);
@@ -175,18 +182,18 @@ app.get('/api/admin/dashboard', adminAuth, (req, res) => {
 });
 
 // 最新の診断結果一覧
-app.get('/api/admin/diagnosis/recent', adminAuth, (req, res) => {
+app.get('/api/admin/diagnosis/recent', adminAuth, async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 50;
         
-        const results = db.prepare(`
-            SELECT id, type_code, type_name, created_at 
-            FROM diagnosis_results 
-            ORDER BY created_at DESC 
-            LIMIT ?
-        `).all(limit);
+        const { data, error } = await supabase
+            .from('diagnosis_results')
+            .select('id, type_code, type_name, created_at')
+            .order('created_at', { ascending: false })
+            .limit(limit);
         
-        res.json(results);
+        if (error) throw error;
+        res.json(data || []);
     } catch (error) {
         console.error('Error getting recent diagnosis:', error);
         res.status(500).json({ error: 'Failed to get recent diagnosis' });
@@ -198,58 +205,72 @@ app.get('/api/admin/diagnosis/recent', adminAuth, (req, res) => {
 // ==========================================
 
 // 期間指定ダッシュボード
-app.get('/api/admin/analytics', adminAuth, (req, res) => {
+app.get('/api/admin/analytics', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
-        const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        const end = endDate || new Date().toISOString().split('T')[0];
+        const start = (startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + 'T00:00:00';
+        const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
         
         // 期間内のアクセス数
-        const periodViews = db.prepare(`
-            SELECT COUNT(*) as count FROM page_views 
-            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-        `).get(start, end);
+        const { count: periodViews } = await supabase
+            .from('page_views')
+            .select('*', { count: 'exact', head: true })
+            .gte('created_at', start)
+            .lte('created_at', end);
         
         // 期間内の診断数
-        const periodDiagnosis = db.prepare(`
-            SELECT COUNT(*) as count FROM diagnosis_results 
-            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-        `).get(start, end);
+        const { count: periodDiagnosis } = await supabase
+            .from('diagnosis_results')
+            .select('*', { count: 'exact', head: true })
+            .gte('created_at', start)
+            .lte('created_at', end);
         
         // 日別アクセス推移
-        const dailyViews = db.prepare(`
-            SELECT DATE(created_at) as date, COUNT(*) as count 
-            FROM page_views 
-            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-            GROUP BY DATE(created_at)
-            ORDER BY date
-        `).all(start, end);
+        const { data: viewsData } = await supabase
+            .from('page_views')
+            .select('created_at')
+            .gte('created_at', start)
+            .lte('created_at', end);
+        
+        const dailyViews = {};
+        (viewsData || []).forEach(v => {
+            const date = v.created_at.split('T')[0];
+            dailyViews[date] = (dailyViews[date] || 0) + 1;
+        });
+        const dailyViewsArray = Object.entries(dailyViews)
+            .map(([date, count]) => ({ date, count }))
+            .sort((a, b) => a.date.localeCompare(b.date));
         
         // 日別診断推移
-        const dailyDiagnosis = db.prepare(`
-            SELECT DATE(created_at) as date, COUNT(*) as count 
-            FROM diagnosis_results 
-            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-            GROUP BY DATE(created_at)
-            ORDER BY date
-        `).all(start, end);
+        const { data: diagData } = await supabase
+            .from('diagnosis_results')
+            .select('created_at, type_code, type_name')
+            .gte('created_at', start)
+            .lte('created_at', end);
         
-        // タイプ別統計（期間内）
-        const typeStats = db.prepare(`
-            SELECT type_code, type_name, COUNT(*) as count 
-            FROM diagnosis_results 
-            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-            GROUP BY type_code 
-            ORDER BY count DESC
-        `).all(start, end);
+        const dailyDiagnosis = {};
+        const typeStats = {};
+        (diagData || []).forEach(d => {
+            const date = d.created_at.split('T')[0];
+            dailyDiagnosis[date] = (dailyDiagnosis[date] || 0) + 1;
+            
+            if (!typeStats[d.type_code]) {
+                typeStats[d.type_code] = { type_code: d.type_code, type_name: d.type_name, count: 0 };
+            }
+            typeStats[d.type_code].count++;
+        });
+        const dailyDiagnosisArray = Object.entries(dailyDiagnosis)
+            .map(([date, count]) => ({ date, count }))
+            .sort((a, b) => a.date.localeCompare(b.date));
+        const typeStatsArray = Object.values(typeStats).sort((a, b) => b.count - a.count);
         
         res.json({
-            period: { start, end },
-            periodViews: periodViews.count,
-            periodDiagnosis: periodDiagnosis.count,
-            dailyViews,
-            dailyDiagnosis,
-            typeStats
+            period: { start: startDate, end: endDate },
+            periodViews: periodViews || 0,
+            periodDiagnosis: periodDiagnosis || 0,
+            dailyViews: dailyViewsArray,
+            dailyDiagnosis: dailyDiagnosisArray,
+            typeStats: typeStatsArray
         });
     } catch (error) {
         console.error('Error getting analytics:', error);
@@ -258,31 +279,41 @@ app.get('/api/admin/analytics', adminAuth, (req, res) => {
 });
 
 // 時間帯別分析
-app.get('/api/admin/analytics/hourly', adminAuth, (req, res) => {
+app.get('/api/admin/analytics/hourly', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
-        const start = startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        const end = endDate || new Date().toISOString().split('T')[0];
+        const start = (startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + 'T00:00:00';
+        const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
         
-        // 時間帯別アクセス
-        const hourlyViews = db.prepare(`
-            SELECT strftime('%H', created_at) as hour, COUNT(*) as count 
-            FROM page_views 
-            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-            GROUP BY hour
-            ORDER BY hour
-        `).all(start, end);
+        const { data: viewsData } = await supabase
+            .from('page_views')
+            .select('created_at')
+            .gte('created_at', start)
+            .lte('created_at', end);
         
-        // 時間帯別診断
-        const hourlyDiagnosis = db.prepare(`
-            SELECT strftime('%H', created_at) as hour, COUNT(*) as count 
-            FROM diagnosis_results 
-            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-            GROUP BY hour
-            ORDER BY hour
-        `).all(start, end);
+        const { data: diagData } = await supabase
+            .from('diagnosis_results')
+            .select('created_at')
+            .gte('created_at', start)
+            .lte('created_at', end);
         
-        res.json({ hourlyViews, hourlyDiagnosis });
+        const hourlyViews = {};
+        const hourlyDiagnosis = {};
+        
+        (viewsData || []).forEach(v => {
+            const hour = new Date(v.created_at).getUTCHours().toString().padStart(2, '0');
+            hourlyViews[hour] = (hourlyViews[hour] || 0) + 1;
+        });
+        
+        (diagData || []).forEach(d => {
+            const hour = new Date(d.created_at).getUTCHours().toString().padStart(2, '0');
+            hourlyDiagnosis[hour] = (hourlyDiagnosis[hour] || 0) + 1;
+        });
+        
+        res.json({
+            hourlyViews: Object.entries(hourlyViews).map(([hour, count]) => ({ hour, count })),
+            hourlyDiagnosis: Object.entries(hourlyDiagnosis).map(([hour, count]) => ({ hour, count }))
+        });
     } catch (error) {
         console.error('Error getting hourly analytics:', error);
         res.status(500).json({ error: 'Failed to get hourly analytics' });
@@ -290,52 +321,63 @@ app.get('/api/admin/analytics/hourly', adminAuth, (req, res) => {
 });
 
 // 曜日別分析
-app.get('/api/admin/analytics/weekday', adminAuth, (req, res) => {
+app.get('/api/admin/analytics/weekday', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
-        const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        const end = endDate || new Date().toISOString().split('T')[0];
+        const start = (startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + 'T00:00:00';
+        const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
         
-        // 曜日別アクセス (0=日曜, 6=土曜)
-        const weekdayViews = db.prepare(`
-            SELECT strftime('%w', created_at) as weekday, COUNT(*) as count 
-            FROM page_views 
-            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-            GROUP BY weekday
-            ORDER BY weekday
-        `).all(start, end);
+        const { data: viewsData } = await supabase
+            .from('page_views')
+            .select('created_at')
+            .gte('created_at', start)
+            .lte('created_at', end);
         
-        // 曜日別診断
-        const weekdayDiagnosis = db.prepare(`
-            SELECT strftime('%w', created_at) as weekday, COUNT(*) as count 
-            FROM diagnosis_results 
-            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-            GROUP BY weekday
-            ORDER BY weekday
-        `).all(start, end);
+        const { data: diagData } = await supabase
+            .from('diagnosis_results')
+            .select('created_at')
+            .gte('created_at', start)
+            .lte('created_at', end);
         
-        res.json({ weekdayViews, weekdayDiagnosis });
+        const weekdayViews = {};
+        const weekdayDiagnosis = {};
+        
+        (viewsData || []).forEach(v => {
+            const weekday = new Date(v.created_at).getDay().toString();
+            weekdayViews[weekday] = (weekdayViews[weekday] || 0) + 1;
+        });
+        
+        (diagData || []).forEach(d => {
+            const weekday = new Date(d.created_at).getDay().toString();
+            weekdayDiagnosis[weekday] = (weekdayDiagnosis[weekday] || 0) + 1;
+        });
+        
+        res.json({
+            weekdayViews: Object.entries(weekdayViews).map(([weekday, count]) => ({ weekday, count })),
+            weekdayDiagnosis: Object.entries(weekdayDiagnosis).map(([weekday, count]) => ({ weekday, count }))
+        });
     } catch (error) {
         console.error('Error getting weekday analytics:', error);
         res.status(500).json({ error: 'Failed to get weekday analytics' });
     }
 });
 
-// デバイス分析（User-Agentから推定）
-app.get('/api/admin/analytics/devices', adminAuth, (req, res) => {
+// デバイス分析
+app.get('/api/admin/analytics/devices', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
-        const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        const end = endDate || new Date().toISOString().split('T')[0];
+        const start = (startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + 'T00:00:00';
+        const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
         
-        const allUserAgents = db.prepare(`
-            SELECT user_agent FROM page_views 
-            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-        `).all(start, end);
+        const { data } = await supabase
+            .from('page_views')
+            .select('user_agent')
+            .gte('created_at', start)
+            .lte('created_at', end);
         
         const devices = { mobile: 0, tablet: 0, desktop: 0 };
         
-        allUserAgents.forEach(row => {
+        (data || []).forEach(row => {
             const ua = (row.user_agent || '').toLowerCase();
             if (/ipad|tablet|playbook|silk/.test(ua)) {
                 devices.tablet++;
@@ -363,40 +405,34 @@ app.get('/api/admin/analytics/devices', adminAuth, (req, res) => {
 });
 
 // 流入元分析
-app.get('/api/admin/analytics/referrers', adminAuth, (req, res) => {
+app.get('/api/admin/analytics/referrers', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
-        const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        const end = endDate || new Date().toISOString().split('T')[0];
+        const start = (startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + 'T00:00:00';
+        const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
         
-        const allReferrers = db.prepare(`
-            SELECT referrer FROM page_views 
-            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-            AND referrer IS NOT NULL AND referrer != ''
-        `).all(start, end);
+        const { data } = await supabase
+            .from('page_views')
+            .select('referrer')
+            .gte('created_at', start)
+            .lte('created_at', end);
         
-        const referrerCounts = {};
+        const referrerCounts = { 'direct': 0 };
         
-        allReferrers.forEach(row => {
-            try {
-                const url = new URL(row.referrer);
-                const domain = url.hostname.replace('www.', '');
-                referrerCounts[domain] = (referrerCounts[domain] || 0) + 1;
-            } catch {
-                referrerCounts['direct'] = (referrerCounts['direct'] || 0) + 1;
+        (data || []).forEach(row => {
+            if (!row.referrer || row.referrer === '') {
+                referrerCounts['direct']++;
+            } else {
+                try {
+                    const url = new URL(row.referrer);
+                    const domain = url.hostname.replace('www.', '');
+                    referrerCounts[domain] = (referrerCounts[domain] || 0) + 1;
+                } catch {
+                    referrerCounts['direct']++;
+                }
             }
         });
         
-        // 直接流入の数も追加
-        const directCount = db.prepare(`
-            SELECT COUNT(*) as count FROM page_views 
-            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-            AND (referrer IS NULL OR referrer = '')
-        `).get(start, end);
-        
-        referrerCounts['direct'] = (referrerCounts['direct'] || 0) + directCount.count;
-        
-        // 上位10件を返す
         const sorted = Object.entries(referrerCounts)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 10)
@@ -410,21 +446,28 @@ app.get('/api/admin/analytics/referrers', adminAuth, (req, res) => {
 });
 
 // ページ別アクセス分析
-app.get('/api/admin/analytics/pages', adminAuth, (req, res) => {
+app.get('/api/admin/analytics/pages', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
-        const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        const end = endDate || new Date().toISOString().split('T')[0];
+        const start = (startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + 'T00:00:00';
+        const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
         
-        const pageStats = db.prepare(`
-            SELECT page, COUNT(*) as count 
-            FROM page_views 
-            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-            GROUP BY page 
-            ORDER BY count DESC
-        `).all(start, end);
+        const { data } = await supabase
+            .from('page_views')
+            .select('page')
+            .gte('created_at', start)
+            .lte('created_at', end);
         
-        res.json({ pages: pageStats });
+        const pageCounts = {};
+        (data || []).forEach(row => {
+            pageCounts[row.page] = (pageCounts[row.page] || 0) + 1;
+        });
+        
+        const pages = Object.entries(pageCounts)
+            .map(([page, count]) => ({ page, count }))
+            .sort((a, b) => b.count - a.count);
+        
+        res.json({ pages });
     } catch (error) {
         console.error('Error getting page analytics:', error);
         res.status(500).json({ error: 'Failed to get page analytics' });
@@ -432,54 +475,56 @@ app.get('/api/admin/analytics/pages', adminAuth, (req, res) => {
 });
 
 // コンバージョン分析
-app.get('/api/admin/analytics/conversion', adminAuth, (req, res) => {
+app.get('/api/admin/analytics/conversion', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
-        const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        const end = endDate || new Date().toISOString().split('T')[0];
+        const start = (startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + 'T00:00:00';
+        const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
         
-        // ホームページのアクセス
-        const homeViews = db.prepare(`
-            SELECT COUNT(*) as count FROM page_views 
-            WHERE page = 'home' AND DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-        `).get(start, end);
+        const { count: homeViews } = await supabase
+            .from('page_views')
+            .select('*', { count: 'exact', head: true })
+            .eq('page', 'home')
+            .gte('created_at', start)
+            .lte('created_at', end);
         
-        // クイズ開始
-        const quizViews = db.prepare(`
-            SELECT COUNT(*) as count FROM page_views 
-            WHERE page = 'quiz' AND DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-        `).get(start, end);
+        const { count: quizViews } = await supabase
+            .from('page_views')
+            .select('*', { count: 'exact', head: true })
+            .eq('page', 'quiz')
+            .gte('created_at', start)
+            .lte('created_at', end);
         
-        // 結果ページ
-        const resultViews = db.prepare(`
-            SELECT COUNT(*) as count FROM page_views 
-            WHERE page = 'result' AND DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-        `).get(start, end);
+        const { count: resultViews } = await supabase
+            .from('page_views')
+            .select('*', { count: 'exact', head: true })
+            .eq('page', 'result')
+            .gte('created_at', start)
+            .lte('created_at', end);
         
-        // 診断完了数
-        const completed = db.prepare(`
-            SELECT COUNT(*) as count FROM diagnosis_results 
-            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-        `).get(start, end);
+        const { count: completed } = await supabase
+            .from('diagnosis_results')
+            .select('*', { count: 'exact', head: true })
+            .gte('created_at', start)
+            .lte('created_at', end);
         
         const funnel = [
-            { stage: 'ホーム', count: homeViews.count },
-            { stage: 'クイズ開始', count: quizViews.count },
-            { stage: '結果表示', count: resultViews.count },
-            { stage: '診断完了', count: completed.count }
+            { stage: 'ホーム', count: homeViews || 0 },
+            { stage: 'クイズ開始', count: quizViews || 0 },
+            { stage: '結果表示', count: resultViews || 0 },
+            { stage: '診断完了', count: completed || 0 }
         ];
         
-        // コンバージョン率計算
-        const conversionRate = homeViews.count > 0 
-            ? Math.round(completed.count / homeViews.count * 100 * 10) / 10 
+        const conversionRate = (homeViews || 0) > 0 
+            ? Math.round((completed || 0) / homeViews * 100 * 10) / 10 
             : 0;
         
-        const quizStartRate = homeViews.count > 0
-            ? Math.round(quizViews.count / homeViews.count * 100 * 10) / 10
+        const quizStartRate = (homeViews || 0) > 0
+            ? Math.round((quizViews || 0) / homeViews * 100 * 10) / 10
             : 0;
             
-        const quizCompleteRate = quizViews.count > 0
-            ? Math.round(completed.count / quizViews.count * 100 * 10) / 10
+        const quizCompleteRate = (quizViews || 0) > 0
+            ? Math.round((completed || 0) / quizViews * 100 * 10) / 10
             : 0;
         
         res.json({
@@ -494,64 +539,33 @@ app.get('/api/admin/analytics/conversion', adminAuth, (req, res) => {
     }
 });
 
-// タイプ別トレンド分析
-app.get('/api/admin/analytics/type-trend', adminAuth, (req, res) => {
-    try {
-        const { startDate, endDate, typeCode } = req.query;
-        const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        const end = endDate || new Date().toISOString().split('T')[0];
-        
-        let query = `
-            SELECT DATE(created_at) as date, type_code, COUNT(*) as count 
-            FROM diagnosis_results 
-            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-        `;
-        const params = [start, end];
-        
-        if (typeCode) {
-            query += ` AND type_code = ?`;
-            params.push(typeCode);
-        }
-        
-        query += ` GROUP BY date, type_code ORDER BY date, type_code`;
-        
-        const trends = db.prepare(query).all(...params);
-        
-        res.json({ trends });
-    } catch (error) {
-        console.error('Error getting type trend:', error);
-        res.status(500).json({ error: 'Failed to get type trend' });
-    }
-});
-
-// ヒートマップ用データ（曜日 x 時間帯）
-app.get('/api/admin/analytics/heatmap', adminAuth, (req, res) => {
+// ヒートマップ用データ
+app.get('/api/admin/analytics/heatmap', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
-        const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        const end = endDate || new Date().toISOString().split('T')[0];
+        const start = (startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + 'T00:00:00';
+        const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
         
-        const heatmapData = db.prepare(`
-            SELECT 
-                strftime('%w', created_at) as weekday,
-                strftime('%H', created_at) as hour,
-                COUNT(*) as count 
-            FROM page_views 
-            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-            GROUP BY weekday, hour
-            ORDER BY weekday, hour
-        `).all(start, end);
+        const { data } = await supabase
+            .from('page_views')
+            .select('created_at')
+            .gte('created_at', start)
+            .lte('created_at', end);
         
-        // 7x24のマトリックスを作成
         const matrix = Array(7).fill(null).map(() => Array(24).fill(0));
+        let maxValue = 1;
         
-        heatmapData.forEach(row => {
-            const weekday = parseInt(row.weekday);
-            const hour = parseInt(row.hour);
-            matrix[weekday][hour] = row.count;
+        (data || []).forEach(row => {
+            const date = new Date(row.created_at);
+            const weekday = date.getDay();
+            const hour = date.getUTCHours();
+            matrix[weekday][hour]++;
+            if (matrix[weekday][hour] > maxValue) {
+                maxValue = matrix[weekday][hour];
+            }
         });
         
-        res.json({ matrix, maxValue: Math.max(...heatmapData.map(d => d.count), 1) });
+        res.json({ matrix, maxValue });
     } catch (error) {
         console.error('Error getting heatmap data:', error);
         res.status(500).json({ error: 'Failed to get heatmap data' });
@@ -559,24 +573,25 @@ app.get('/api/admin/analytics/heatmap', adminAuth, (req, res) => {
 });
 
 // CSVエクスポート - 診断結果
-app.get('/api/admin/export/diagnosis', adminAuth, (req, res) => {
+app.get('/api/admin/export/diagnosis', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
-        const start = startDate || '2020-01-01';
-        const end = endDate || new Date().toISOString().split('T')[0];
+        const start = (startDate || '2020-01-01') + 'T00:00:00';
+        const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
         
-        const results = db.prepare(`
-            SELECT id, type_code, type_name, scores, user_agent, created_at 
-            FROM diagnosis_results 
-            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-            ORDER BY created_at DESC
-        `).all(start, end);
+        const { data, error } = await supabase
+            .from('diagnosis_results')
+            .select('id, type_code, type_name, scores, user_agent, created_at')
+            .gte('created_at', start)
+            .lte('created_at', end)
+            .order('created_at', { ascending: false });
         
-        // CSV生成
+        if (error) throw error;
+        
         const headers = ['ID', 'タイプコード', 'タイプ名', 'スコア', 'ユーザーエージェント', '日時'];
         const csv = [
             headers.join(','),
-            ...results.map(r => [
+            ...(data || []).map(r => [
                 r.id,
                 r.type_code,
                 `"${r.type_name}"`,
@@ -587,8 +602,8 @@ app.get('/api/admin/export/diagnosis', adminAuth, (req, res) => {
         ].join('\n');
         
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', `attachment; filename=diagnosis_${start}_${end}.csv`);
-        res.send('\uFEFF' + csv); // BOM付きUTF-8
+        res.setHeader('Content-Disposition', `attachment; filename=diagnosis_${startDate}_${endDate}.csv`);
+        res.send('\uFEFF' + csv);
     } catch (error) {
         console.error('Error exporting diagnosis:', error);
         res.status(500).json({ error: 'Failed to export diagnosis' });
@@ -596,24 +611,25 @@ app.get('/api/admin/export/diagnosis', adminAuth, (req, res) => {
 });
 
 // CSVエクスポート - ページビュー
-app.get('/api/admin/export/pageviews', adminAuth, (req, res) => {
+app.get('/api/admin/export/pageviews', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
-        const start = startDate || '2020-01-01';
-        const end = endDate || new Date().toISOString().split('T')[0];
+        const start = (startDate || '2020-01-01') + 'T00:00:00';
+        const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
         
-        const results = db.prepare(`
-            SELECT id, page, user_agent, referrer, ip, created_at 
-            FROM page_views 
-            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
-            ORDER BY created_at DESC
-        `).all(start, end);
+        const { data, error } = await supabase
+            .from('page_views')
+            .select('id, page, user_agent, referrer, ip, created_at')
+            .gte('created_at', start)
+            .lte('created_at', end)
+            .order('created_at', { ascending: false });
         
-        // CSV生成
+        if (error) throw error;
+        
         const headers = ['ID', 'ページ', 'ユーザーエージェント', 'リファラー', 'IP', '日時'];
         const csv = [
             headers.join(','),
-            ...results.map(r => [
+            ...(data || []).map(r => [
                 r.id,
                 r.page,
                 `"${(r.user_agent || '').replace(/"/g, '""')}"`,
@@ -624,8 +640,8 @@ app.get('/api/admin/export/pageviews', adminAuth, (req, res) => {
         ].join('\n');
         
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', `attachment; filename=pageviews_${start}_${end}.csv`);
-        res.send('\uFEFF' + csv); // BOM付きUTF-8
+        res.setHeader('Content-Disposition', `attachment; filename=pageviews_${startDate}_${endDate}.csv`);
+        res.send('\uFEFF' + csv);
     } catch (error) {
         console.error('Error exporting pageviews:', error);
         res.status(500).json({ error: 'Failed to export pageviews' });
@@ -634,8 +650,8 @@ app.get('/api/admin/export/pageviews', adminAuth, (req, res) => {
 
 // サーバー起動
 app.listen(PORT, () => {
-    console.log(`🚀 マリッジタイプ診断 管理サーバー起動`);
+    console.log(`🚀 マリッジタイプ診断 管理サーバー起動（Supabase版）`);
     console.log(`   URL: http://localhost:${PORT}`);
     console.log(`   管理画面: http://localhost:${PORT}/admin`);
-    console.log(`   APIキー: ${ADMIN_API_KEY}`);
+    console.log(`   データベース: Supabase (永続化対応)`);
 });

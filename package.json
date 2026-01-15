@@ -10,6 +10,6 @@
   "dependencies": {
     "express": "^4.21.2",
     "cors": "^2.8.5",
-    "better-sqlite3": "^11.7.0"
+    "@supabase/supabase-js": "^2.47.0"
   }
 }
