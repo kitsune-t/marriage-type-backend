@@ -203,8 +203,9 @@ app.get('/api/admin/dashboard', adminAuth, async (req, res) => {
         });
         const typeStatsArray = Object.values(typeStats).sort((a, b) => b.count - a.count);
         
-        // 過去7日間のアクセス推移
-        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        // 過去7日間のアクセス推移（日本時間基準）
+        const sevenDaysAgoDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const sevenDaysAgo = getJSTDateString(sevenDaysAgoDate) + 'T00:00:00+09:00';
         const { data: viewsData } = await supabase
             .from('page_views')
             .select('created_at')
@@ -220,7 +221,7 @@ app.get('/api/admin/dashboard', adminAuth, async (req, res) => {
             .map(([date, count]) => ({ date, count }))
             .sort((a, b) => a.date.localeCompare(b.date));
         
-        // 過去7日間の診断数推移
+        // 過去7日間の診断数推移（同じ日本時間基準）
         const { data: diagData } = await supabase
             .from('diagnosis_results')
             .select('created_at')
