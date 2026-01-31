@@ -341,6 +341,7 @@ app.get('/api/admin/analytics', adminAuth, async (req, res) => {
             .select('created_at')
             .gte('created_at', start)
             .lte('created_at', end)
+            .order('created_at', { ascending: false })
             .limit(50000);
         
         const dailyViews = {};
@@ -359,6 +360,7 @@ app.get('/api/admin/analytics', adminAuth, async (req, res) => {
             .select('created_at, type_code, type_name')
             .gte('created_at', start)
             .lte('created_at', end)
+            .order('created_at', { ascending: false })
             .limit(50000);
         
         const dailyDiagnosis = {};
