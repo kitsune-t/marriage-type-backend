@@ -1544,8 +1544,8 @@
                 // タイプ別統計
                 renderTypeStats(anaData.typeStats, anaData.periodDiagnosis);
                 
-                // トレンドチャート
-                renderTrendChart(anaData.dailyViews, anaData.dailyDiagnosis);
+                // トレンドチャート（UU数も追加）
+                renderTrendChart(anaData.dailyViews, anaData.dailyUU, anaData.dailyDiagnosis);
                 
                 // 最近の診断結果（50件に増加）
                 const recentRes = await fetch(`${API_BASE}/api/admin/diagnosis/recent?limit=50`, {
@@ -1818,16 +1818,17 @@
             }).join('');
         }
         
-        // トレンドチャートの描画
-        function renderTrendChart(dailyViews, dailyDiagnosis) {
+        // トレンドチャートの描画（UU数追加）
+        function renderTrendChart(dailyViews, dailyUU, dailyDiagnosis) {
             const ctx = document.getElementById('trendChart').getContext('2d');
             
             if (charts.trend) charts.trend.destroy();
             
-            // 両方のデータから全ての日付を取得してマージ
+            // 全てのデータから全ての日付を取得してマージ
             const allDates = new Set();
-            dailyViews.forEach(d => allDates.add(d.date));
-            dailyDiagnosis.forEach(d => allDates.add(d.date));
+            (dailyViews || []).forEach(d => allDates.add(d.date));
+            (dailyUU || []).forEach(d => allDates.add(d.date));
+            (dailyDiagnosis || []).forEach(d => allDates.add(d.date));
             
             // 日付でソート
             const sortedDates = Array.from(allDates).sort();
@@ -1840,11 +1841,14 @@
             
             // 各日付のデータを取得（ない場合は0）
             const viewsMap = {};
-            dailyViews.forEach(d => viewsMap[d.date] = d.count);
+            (dailyViews || []).forEach(d => viewsMap[d.date] = d.count);
+            const uuMap = {};
+            (dailyUU || []).forEach(d => uuMap[d.date] = d.count);
             const diagnosisMap = {};
-            dailyDiagnosis.forEach(d => diagnosisMap[d.date] = d.count);
+            (dailyDiagnosis || []).forEach(d => diagnosisMap[d.date] = d.count);
             
             const viewsData = sortedDates.map(date => viewsMap[date] || 0);
+            const uuData = sortedDates.map(date => uuMap[date] || 0);
             const diagnosisData = sortedDates.map(date => diagnosisMap[date] || 0);
             
             charts.trend = new Chart(ctx, {
@@ -1853,10 +1857,18 @@
                     labels: labels,
                     datasets: [
                         {
-                            label: 'アクセス数',
+                            label: 'PV（アクセス数）',
                             data: viewsData,
                             borderColor: '#7EB8DA',
                             backgroundColor: 'rgba(126, 184, 218, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'UU（ユニークユーザー）',
+                            data: uuData,
+                            borderColor: '#9B59B6',
+                            backgroundColor: 'rgba(155, 89, 182, 0.1)',
                             fill: true,
                             tension: 0.4
                         },
