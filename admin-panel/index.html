@@ -718,8 +718,8 @@
                 <span>〜</span>
                 <input type="date" id="endDate">
                 <div class="preset-btns">
-                    <button class="preset-btn" data-days="7">7日間</button>
-                    <button class="preset-btn active" data-days="30">30日間</button>
+                    <button class="preset-btn active" data-days="7">7日間</button>
+                    <button class="preset-btn" data-days="30">30日間</button>
                     <button class="preset-btn" data-days="90">90日間</button>
                     <button class="preset-btn" data-days="365">1年間</button>
                 </div>
@@ -1082,8 +1082,8 @@
                 btn.addEventListener('click', () => setPresetDays(parseInt(btn.dataset.days)));
             });
             
-            // 初期日付設定
-            setPresetDays(30);
+            // 初期日付設定（デフォルト7日間）
+            setPresetDays(7);
         });
         
         // ログイン
@@ -1185,13 +1185,37 @@
         async function loadAllData() {
             const { startDate, endDate } = getDateRange();
             
-            await Promise.all([
-                loadOverview(startDate, endDate),
-                loadAnalytics(startDate, endDate),
-                loadConversion(startDate, endDate),
-                loadBehavior(startDate, endDate),
-                loadUTMAnalytics(startDate, endDate)
-            ]);
+            // 更新中のフィードバック
+            const refreshBtn = document.querySelector('.refresh-btn');
+            const applyBtn = document.querySelector('.apply-btn');
+            if (refreshBtn) {
+                refreshBtn.textContent = '🔄 読み込み中...';
+                refreshBtn.disabled = true;
+            }
+            if (applyBtn) {
+                applyBtn.textContent = '読み込み中...';
+                applyBtn.disabled = true;
+            }
+            
+            try {
+                await Promise.all([
+                    loadOverview(startDate, endDate),
+                    loadAnalytics(startDate, endDate),
+                    loadConversion(startDate, endDate),
+                    loadBehavior(startDate, endDate),
+                    loadUTMAnalytics(startDate, endDate)
+                ]);
+            } finally {
+                // 完了後に元に戻す
+                if (refreshBtn) {
+                    refreshBtn.textContent = '🔄 更新';
+                    refreshBtn.disabled = false;
+                }
+                if (applyBtn) {
+                    applyBtn.textContent = '適用';
+                    applyBtn.disabled = false;
+                }
+            }
         }
         
         // ==========================================
