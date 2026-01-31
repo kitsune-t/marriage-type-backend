@@ -212,7 +212,8 @@ app.get('/api/admin/dashboard', adminAuth, async (req, res) => {
         
         const dailyViews = {};
         (viewsData || []).forEach(v => {
-            const date = v.created_at.split('T')[0];
+            // 日本時間で日付を取得
+            const date = getJSTDateString(new Date(v.created_at));
             dailyViews[date] = (dailyViews[date] || 0) + 1;
         });
         const dailyViewsArray = Object.entries(dailyViews)
@@ -227,7 +228,8 @@ app.get('/api/admin/dashboard', adminAuth, async (req, res) => {
         
         const dailyDiagnosis = {};
         (diagData || []).forEach(d => {
-            const date = d.created_at.split('T')[0];
+            // 日本時間で日付を取得
+            const date = getJSTDateString(new Date(d.created_at));
             dailyDiagnosis[date] = (dailyDiagnosis[date] || 0) + 1;
         });
         const dailyDiagnosisArray = Object.entries(dailyDiagnosis)
@@ -302,7 +304,8 @@ app.get('/api/admin/analytics', adminAuth, async (req, res) => {
         
         const dailyViews = {};
         (viewsData || []).forEach(v => {
-            const date = v.created_at.split('T')[0];
+            // 日本時間で日付を取得
+            const date = getJSTDateString(new Date(v.created_at));
             dailyViews[date] = (dailyViews[date] || 0) + 1;
         });
         const dailyViewsArray = Object.entries(dailyViews)
@@ -319,7 +322,8 @@ app.get('/api/admin/analytics', adminAuth, async (req, res) => {
         const dailyDiagnosis = {};
         const typeStats = {};
         (diagData || []).forEach(d => {
-            const date = d.created_at.split('T')[0];
+            // 日本時間で日付を取得
+            const date = getJSTDateString(new Date(d.created_at));
             dailyDiagnosis[date] = (dailyDiagnosis[date] || 0) + 1;
             
             if (!typeStats[d.type_code]) {
