@@ -983,6 +983,16 @@
                     </div>
                     
                     <div class="card">
+                        <h2><span class="icon">📋</span> 発行済みリンク履歴</h2>
+                        <div id="link-history" style="max-height: 300px; overflow-y: auto;">
+                            <div class="loading">履歴なし</div>
+                        </div>
+                        <button onclick="clearLinkHistory()" style="margin-top: 15px; padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">
+                            🗑️ 履歴をクリア
+                        </button>
+                    </div>
+                    
+                    <div class="card">
                         <h2><span class="icon">📊</span> キャンペーン別流入</h2>
                         <div id="campaign-stats">
                             <div class="loading">読み込み中...</div>
@@ -1129,6 +1139,7 @@
             document.getElementById('loginContainer').style.display = 'none';
             document.getElementById('dashboard').style.display = 'block';
             loadAllData();
+            renderLinkHistory(); // 発行履歴を表示
             
             // 自動更新: 30秒ごとにデータを更新
             if (autoRefreshInterval) clearInterval(autoRefreshInterval);
@@ -1251,6 +1262,83 @@
             document.getElementById('generated-link').value = trackingUrl;
             document.getElementById('generated-link-area').style.display = 'block';
             document.getElementById('copy-success').style.display = 'none';
+            
+            // 履歴に保存
+            saveLinkToHistory({
+                campaign,
+                source,
+                medium,
+                url: trackingUrl,
+                createdAt: new Date().toISOString()
+            });
+            renderLinkHistory();
+        }
+        
+        // 履歴をlocalStorageに保存
+        function saveLinkToHistory(linkData) {
+            const history = JSON.parse(localStorage.getItem('trackingLinkHistory') || '[]');
+            // 同じキャンペーン名があれば更新、なければ追加
+            const existingIndex = history.findIndex(h => h.campaign === linkData.campaign);
+            if (existingIndex >= 0) {
+                history[existingIndex] = linkData;
+            } else {
+                history.unshift(linkData); // 新しいものを先頭に
+            }
+            // 最大20件まで保持
+            if (history.length > 20) history.pop();
+            localStorage.setItem('trackingLinkHistory', JSON.stringify(history));
+        }
+        
+        // 履歴を表示
+        function renderLinkHistory() {
+            const container = document.getElementById('link-history');
+            const history = JSON.parse(localStorage.getItem('trackingLinkHistory') || '[]');
+            
+            if (history.length === 0) {
+                container.innerHTML = '<div style="color: #888; text-align: center; padding: 20px;">発行履歴がありません</div>';
+                return;
+            }
+            
+            container.innerHTML = history.map(item => {
+                const date = new Date(item.createdAt);
+                const dateStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2,'0')}`;
+                return `
+                    <div style="padding: 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-weight: 600; color: #333; margin-bottom: 4px;">📌 ${item.campaign}</div>
+                            <div style="font-size: 0.8rem; color: #888;">${item.source} / ${item.medium} - ${dateStr}</div>
+                        </div>
+                        <button onclick="copyHistoryLink('${item.url}')" style="padding: 6px 12px; background: #7EB8DA; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">
+                            📋 コピー
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // 履歴からコピー
+        function copyHistoryLink(url) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(() => {
+                    alert('コピーしました！');
+                });
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = url;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                alert('コピーしました！');
+            }
+        }
+        
+        // 履歴をクリア
+        function clearLinkHistory() {
+            if (confirm('発行履歴をすべて削除しますか？')) {
+                localStorage.removeItem('trackingLinkHistory');
+                renderLinkHistory();
+            }
         }
         
         // リンクをコピー
