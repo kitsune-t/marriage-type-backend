@@ -916,7 +916,9 @@ app.get('/api/admin/analytics/utm', adminAuth, async (req, res) => {
             .from('page_views')
             .select('utm_source, utm_medium, utm_campaign')
             .gte('created_at', start)
-            .lte('created_at', end);
+            .lte('created_at', end)
+            .order('created_at', { ascending: false })
+            .limit(50000);
         
         // ソース別集計
         const sourceCounts = {};
