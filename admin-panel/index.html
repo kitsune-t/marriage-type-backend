@@ -1709,10 +1709,28 @@
             
             if (charts.trend) charts.trend.destroy();
             
-            const labels = dailyViews.map(d => {
-                const date = new Date(d.date);
+            // 両方のデータから全ての日付を取得してマージ
+            const allDates = new Set();
+            dailyViews.forEach(d => allDates.add(d.date));
+            dailyDiagnosis.forEach(d => allDates.add(d.date));
+            
+            // 日付でソート
+            const sortedDates = Array.from(allDates).sort();
+            
+            // ラベル作成
+            const labels = sortedDates.map(dateStr => {
+                const date = new Date(dateStr);
                 return `${date.getMonth() + 1}/${date.getDate()}`;
             });
+            
+            // 各日付のデータを取得（ない場合は0）
+            const viewsMap = {};
+            dailyViews.forEach(d => viewsMap[d.date] = d.count);
+            const diagnosisMap = {};
+            dailyDiagnosis.forEach(d => diagnosisMap[d.date] = d.count);
+            
+            const viewsData = sortedDates.map(date => viewsMap[date] || 0);
+            const diagnosisData = sortedDates.map(date => diagnosisMap[date] || 0);
             
             charts.trend = new Chart(ctx, {
                 type: 'line',
@@ -1721,7 +1739,7 @@
                     datasets: [
                         {
                             label: 'アクセス数',
-                            data: dailyViews.map(d => d.count),
+                            data: viewsData,
                             borderColor: '#7EB8DA',
                             backgroundColor: 'rgba(126, 184, 218, 0.1)',
                             fill: true,
@@ -1729,7 +1747,7 @@
                         },
                         {
                             label: '診断数',
-                            data: dailyDiagnosis.map(d => d.count),
+                            data: diagnosisData,
                             borderColor: '#F5A5B8',
                             backgroundColor: 'rgba(245, 165, 184, 0.1)',
                             fill: true,
