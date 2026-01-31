@@ -200,17 +200,31 @@ app.get('/api/admin/dashboard', adminAuth, async (req, res) => {
         const todayStart = today + 'T00:00:00+09:00';
         const todayEnd = today + 'T23:59:59+09:00';
         
-        // 総アクセス数
+        // 総アクセス数（PV）
         const { count: totalViews } = await supabase
             .from('page_views')
             .select('*', { count: 'exact', head: true });
         
-        // 今日のアクセス数
+        // 総UU数（ユニークIP）
+        const { data: allIpData } = await supabase
+            .from('page_views')
+            .select('ip');
+        const totalUU = new Set((allIpData || []).map(d => d.ip).filter(ip => ip)).size;
+        
+        // 今日のアクセス数（PV）
         const { count: todayViews } = await supabase
             .from('page_views')
             .select('*', { count: 'exact', head: true })
             .gte('created_at', todayStart)
             .lte('created_at', todayEnd);
+        
+        // 今日のUU数
+        const { data: todayIpData } = await supabase
+            .from('page_views')
+            .select('ip')
+            .gte('created_at', todayStart)
+            .lte('created_at', todayEnd);
+        const todayUU = new Set((todayIpData || []).map(d => d.ip).filter(ip => ip)).size;
         
         // 総診断数
         const { count: totalDiagnosis } = await supabase
@@ -278,7 +292,9 @@ app.get('/api/admin/dashboard', adminAuth, async (req, res) => {
         
         res.json({
             totalViews: totalViews || 0,
+            totalUU: totalUU || 0,
             todayViews: todayViews || 0,
+            todayUU: todayUU || 0,
             totalDiagnosis: totalDiagnosis || 0,
             todayDiagnosis: todayDiagnosis || 0,
             typeStats: typeStatsArray,
@@ -321,12 +337,20 @@ app.get('/api/admin/analytics', adminAuth, async (req, res) => {
         const start = (startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + 'T00:00:00';
         const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
         
-        // 期間内のアクセス数
+        // 期間内のアクセス数（PV）
         const { count: periodViews } = await supabase
             .from('page_views')
             .select('*', { count: 'exact', head: true })
             .gte('created_at', start)
             .lte('created_at', end);
+        
+        // 期間内のUU数
+        const { data: periodIpData } = await supabase
+            .from('page_views')
+            .select('ip')
+            .gte('created_at', start)
+            .lte('created_at', end);
+        const periodUU = new Set((periodIpData || []).map(d => d.ip).filter(ip => ip)).size;
         
         // 期間内の診断数
         const { count: periodDiagnosis } = await supabase
@@ -335,23 +359,31 @@ app.get('/api/admin/analytics', adminAuth, async (req, res) => {
             .gte('created_at', start)
             .lte('created_at', end);
         
-        // 日別アクセス推移
+        // 日別アクセス推移（PVとUU両方）
         const { data: viewsData } = await supabase
             .from('page_views')
-            .select('created_at')
+            .select('created_at, ip')
             .gte('created_at', start)
             .lte('created_at', end)
             .order('created_at', { ascending: false })
             .limit(50000);
         
         const dailyViews = {};
+        const dailyUU = {};  // 日別UU用
         (viewsData || []).forEach(v => {
             // 日本時間で日付を取得
             const date = getJSTDateString(new Date(v.created_at));
             dailyViews[date] = (dailyViews[date] || 0) + 1;
+            
+            // 日別UU集計
+            if (!dailyUU[date]) dailyUU[date] = new Set();
+            if (v.ip) dailyUU[date].add(v.ip);
         });
         const dailyViewsArray = Object.entries(dailyViews)
             .map(([date, count]) => ({ date, count }))
+            .sort((a, b) => a.date.localeCompare(b.date));
+        const dailyUUArray = Object.entries(dailyUU)
+            .map(([date, ipSet]) => ({ date, count: ipSet.size }))
             .sort((a, b) => a.date.localeCompare(b.date));
         
         // 日別診断推移
@@ -383,8 +415,10 @@ app.get('/api/admin/analytics', adminAuth, async (req, res) => {
         res.json({
             period: { start: startDate, end: endDate },
             periodViews: periodViews || 0,
+            periodUU: periodUU || 0,
             periodDiagnosis: periodDiagnosis || 0,
             dailyViews: dailyViewsArray,
+            dailyUU: dailyUUArray,
             dailyDiagnosis: dailyDiagnosisArray,
             typeStats: typeStatsArray
         });

@@ -730,9 +730,9 @@
             <div class="tab-content active" id="tab-overview">
                 <div class="stats-grid">
                     <div class="stat-card primary">
-                        <h3>📊 期間内アクセス数</h3>
+                        <h3>📊 期間内アクセス</h3>
                         <div class="value" id="periodViews">-</div>
-                        <div class="sub-value">総計: <span id="totalViews">-</span></div>
+                        <div class="sub-value">UU: <span id="periodUU">-</span> / 総PV: <span id="totalViews">-</span></div>
                     </div>
                     <div class="stat-card secondary">
                         <h3>✅ 期間内診断数</h3>
@@ -742,6 +742,7 @@
                     <div class="stat-card success">
                         <h3>📈 今日のアクセス</h3>
                         <div class="value" id="todayViews">-</div>
+                        <div class="sub-value">UU: <span id="todayUU">-</span></div>
                     </div>
                     <div class="stat-card warning">
                         <h3>🆕 今日の診断</h3>
@@ -1532,10 +1533,12 @@
                 // 統計表示
                 document.getElementById('totalViews').textContent = dashData.totalViews.toLocaleString();
                 document.getElementById('todayViews').textContent = dashData.todayViews.toLocaleString();
+                document.getElementById('todayUU').textContent = (dashData.todayUU || 0).toLocaleString();
                 document.getElementById('totalDiagnosis').textContent = dashData.totalDiagnosis.toLocaleString();
                 document.getElementById('todayDiagnosis').textContent = dashData.todayDiagnosis.toLocaleString();
                 
                 document.getElementById('periodViews').textContent = anaData.periodViews.toLocaleString();
+                document.getElementById('periodUU').textContent = (anaData.periodUU || 0).toLocaleString();
                 document.getElementById('periodDiagnosis').textContent = anaData.periodDiagnosis.toLocaleString();
                 
                 // タイプ別統計
