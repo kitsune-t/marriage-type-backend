@@ -57,6 +57,39 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString(), database: 'supabase' });
 });
 
+// デバッグ用API
+app.get('/api/debug/daily', async (req, res) => {
+    try {
+        const sevenDaysAgoDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const sevenDaysAgo = getJSTDateString(sevenDaysAgoDate) + 'T00:00:00+09:00';
+        const today = getJSTDateString();
+        
+        const { data: viewsData, error } = await supabase
+            .from('page_views')
+            .select('created_at')
+            .gte('created_at', sevenDaysAgo);
+        
+        const dailyViews = {};
+        (viewsData || []).forEach(v => {
+            const date = getJSTDateString(new Date(v.created_at));
+            dailyViews[date] = (dailyViews[date] || 0) + 1;
+        });
+        
+        res.json({
+            serverTime: new Date().toISOString(),
+            todayJST: today,
+            sevenDaysAgo,
+            sevenDaysAgoDate: sevenDaysAgoDate.toISOString(),
+            viewsDataCount: (viewsData || []).length,
+            sampleData: (viewsData || []).slice(-5),
+            dailyViews,
+            error: error ? error.message : null
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // ==========================================
 // API: データ記録
 // ==========================================
