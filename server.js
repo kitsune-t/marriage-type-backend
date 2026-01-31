@@ -67,7 +67,9 @@ app.get('/api/debug/daily', async (req, res) => {
         const { data: viewsData, error } = await supabase
             .from('page_views')
             .select('created_at')
-            .gte('created_at', sevenDaysAgo);
+            .gte('created_at', sevenDaysAgo)
+            .order('created_at', { ascending: false })
+            .limit(10000);
         
         const dailyViews = {};
         (viewsData || []).forEach(v => {
@@ -242,7 +244,9 @@ app.get('/api/admin/dashboard', adminAuth, async (req, res) => {
         const { data: viewsData } = await supabase
             .from('page_views')
             .select('created_at')
-            .gte('created_at', sevenDaysAgo);
+            .gte('created_at', sevenDaysAgo)
+            .order('created_at', { ascending: false })
+            .limit(10000);
         
         const dailyViews = {};
         (viewsData || []).forEach(v => {
@@ -258,7 +262,9 @@ app.get('/api/admin/dashboard', adminAuth, async (req, res) => {
         const { data: diagData } = await supabase
             .from('diagnosis_results')
             .select('created_at')
-            .gte('created_at', sevenDaysAgo);
+            .gte('created_at', sevenDaysAgo)
+            .order('created_at', { ascending: false })
+            .limit(10000);
         
         const dailyDiagnosis = {};
         (diagData || []).forEach(d => {
@@ -334,7 +340,8 @@ app.get('/api/admin/analytics', adminAuth, async (req, res) => {
             .from('page_views')
             .select('created_at')
             .gte('created_at', start)
-            .lte('created_at', end);
+            .lte('created_at', end)
+            .limit(50000);
         
         const dailyViews = {};
         (viewsData || []).forEach(v => {
@@ -351,7 +358,8 @@ app.get('/api/admin/analytics', adminAuth, async (req, res) => {
             .from('diagnosis_results')
             .select('created_at, type_code, type_name')
             .gte('created_at', start)
-            .lte('created_at', end);
+            .lte('created_at', end)
+            .limit(50000);
         
         const dailyDiagnosis = {};
         const typeStats = {};
