@@ -357,7 +357,7 @@
         }
         
         .recent-list {
-            max-height: 400px;
+            max-height: 700px;
             overflow-y: auto;
         }
         
@@ -707,6 +707,7 @@
                 <button class="tab-btn" data-tab="analysis">📈 詳細分析</button>
                 <button class="tab-btn" data-tab="conversion">🎯 コンバージョン</button>
                 <button class="tab-btn" data-tab="behavior">⏰ 行動分析</button>
+                <button class="tab-btn" data-tab="tracking">🔗 トラッキング</button>
                 <button class="tab-btn" data-tab="export">💾 エクスポート</button>
             </div>
             
@@ -844,6 +845,46 @@
             
             <!-- 行動分析タブ -->
             <div class="tab-content" id="tab-behavior">
+                <!-- 離脱分析セクション -->
+                <div class="card">
+                    <h2><span class="icon">🚪</span> 離脱ポイント分析</h2>
+                    <p style="color: #666; margin-bottom: 20px;">どの設問で離脱する人が多いかを分析します。</p>
+                    <div class="stats-grid" style="margin-bottom: 20px;">
+                        <div class="stat-card primary">
+                            <h3>📝 診断開始数</h3>
+                            <div class="value" id="dropout-total-sessions">-</div>
+                        </div>
+                        <div class="stat-card success">
+                            <h3>✅ 完了数</h3>
+                            <div class="value" id="dropout-completed">-</div>
+                        </div>
+                        <div class="stat-card secondary">
+                            <h3>📈 完了率</h3>
+                            <div class="value" id="dropout-completion-rate">-</div>
+                        </div>
+                    </div>
+                    <div id="dropout-funnel">
+                        <div class="loading">読み込み中...</div>
+                    </div>
+                </div>
+                
+                <!-- 流入元詳細セクション -->
+                <div class="card">
+                    <h2><span class="icon">🔍</span> 流入元詳細分析</h2>
+                    <p style="color: #666; margin-bottom: 20px;">どこからアクセスが来ているかを自動判定して分類します。</p>
+                    <div id="traffic-sources">
+                        <div class="loading">読み込み中...</div>
+                    </div>
+                </div>
+                
+                <!-- デバイス詳細 -->
+                <div class="card">
+                    <h2><span class="icon">📱</span> デバイス詳細</h2>
+                    <div id="device-details">
+                        <div class="loading">読み込み中...</div>
+                    </div>
+                </div>
+                
                 <div class="grid-2">
                     <div class="card">
                         <h2><span class="icon">⏰</span> 時間帯別アクセス</h2>
@@ -864,6 +905,104 @@
                     <h2><span class="icon">🗓️</span> アクティビティヒートマップ（曜日×時間帯）</h2>
                     <div class="heatmap-container" id="heatmapContainer">
                         <div class="loading">読み込み中...</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- トラッキングタブ -->
+            <div class="tab-content" id="tab-tracking">
+                <div class="grid-2">
+                    <div class="card">
+                        <h2><span class="icon">🔗</span> トラッキングリンク生成</h2>
+                        <p style="color: #666; margin-bottom: 20px;">SNSや広告に貼るURLを生成して、どこから流入したか計測できます。</p>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 15px;">
+                            <div>
+                                <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">キャンペーン名（必須）</label>
+                                <input type="text" id="utm-campaign" placeholder="例: winter2026, line_post_0131" style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 0.95rem;">
+                                <small style="color: #888;">識別しやすい名前をつけてください</small>
+                            </div>
+                            
+                            <div>
+                                <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">流入元（必須）</label>
+                                <select id="utm-source" style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 0.95rem;">
+                                    <option value="">-- 選択してください --</option>
+                                    <option value="twitter">X（Twitter）</option>
+                                    <option value="instagram">Instagram</option>
+                                    <option value="line">LINE</option>
+                                    <option value="tiktok">TikTok</option>
+                                    <option value="youtube">YouTube</option>
+                                    <option value="facebook">Facebook</option>
+                                    <option value="google">Google広告</option>
+                                    <option value="yahoo">Yahoo広告</option>
+                                    <option value="blog">ブログ</option>
+                                    <option value="email">メール</option>
+                                    <option value="qr">QRコード</option>
+                                    <option value="other">その他</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">メディアタイプ</label>
+                                <select id="utm-medium" style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 0.95rem;">
+                                    <option value="social">SNS投稿</option>
+                                    <option value="story">ストーリー/リール</option>
+                                    <option value="profile">プロフィール</option>
+                                    <option value="ad">広告</option>
+                                    <option value="organic">オーガニック</option>
+                                    <option value="referral">紹介</option>
+                                    <option value="dm">DM</option>
+                                    <option value="email">メール</option>
+                                </select>
+                            </div>
+                            
+                            <button onclick="generateTrackingLink()" style="padding: 14px 24px; background: linear-gradient(135deg, #7EB8DA, #F5A5B8); color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer;">
+                                🔗 リンクを生成
+                            </button>
+                        </div>
+                        
+                        <div id="generated-link-area" style="display: none; margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #555;">生成されたリンク:</label>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" id="generated-link" readonly style="flex: 1; padding: 12px; border: 2px solid #7EB8DA; border-radius: 6px; font-size: 0.9rem; background: white;">
+                                <button onclick="copyTrackingLink()" style="padding: 12px 20px; background: #7EB8DA; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">
+                                    📋 コピー
+                                </button>
+                            </div>
+                            <p id="copy-success" style="display: none; color: #6BCB9E; margin-top: 8px; font-size: 0.9rem;">✓ コピーしました！</p>
+                        </div>
+                        
+                        <div style="margin-top: 20px; padding: 15px; background: #fff8e7; border-radius: 8px; border-left: 4px solid #F5A623;">
+                            <strong style="color: #333;">💡 使い方</strong>
+                            <ol style="margin: 10px 0 0 20px; color: #666; line-height: 1.8;">
+                                <li>キャンペーン名と流入元を選択</li>
+                                <li>生成されたリンクをSNSやメールに貼る</li>
+                                <li>下の「キャンペーン別流入」で効果を確認</li>
+                            </ol>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h2><span class="icon">📊</span> キャンペーン別流入</h2>
+                        <div id="campaign-stats">
+                            <div class="loading">読み込み中...</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="grid-2">
+                    <div class="card">
+                        <h2><span class="icon">📱</span> 流入元（ソース）別</h2>
+                        <div id="utm-source-stats">
+                            <div class="loading">読み込み中...</div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h2><span class="icon">📝</span> メディアタイプ別</h2>
+                        <div id="utm-medium-stats">
+                            <div class="loading">読み込み中...</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1009,13 +1148,25 @@
             });
         }
         
-        // 期間プリセット設定
+        // 日本時間（JST, UTC+9）でYYYY-MM-DD形式の日付を取得
+        function getJSTDateString(date) {
+            // 日本時間に変換（UTC+9時間）
+            const jstDate = new Date(date.getTime() + (9 * 60 * 60 * 1000));
+            const year = jstDate.getUTCFullYear();
+            const month = String(jstDate.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(jstDate.getUTCDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+        
+        // 期間プリセット設定（日本時間基準）
         function setPresetDays(days) {
-            const end = new Date();
-            const start = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+            const now = new Date();
+            const end = now;
+            const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
             
-            document.getElementById('startDate').value = start.toISOString().split('T')[0];
-            document.getElementById('endDate').value = end.toISOString().split('T')[0];
+            // 日本時間で日付を設定
+            document.getElementById('startDate').value = getJSTDateString(start);
+            document.getElementById('endDate').value = getJSTDateString(end);
             
             document.querySelectorAll('.preset-btn').forEach(btn => {
                 btn.classList.toggle('active', parseInt(btn.dataset.days) === days);
@@ -1038,8 +1189,207 @@
                 loadOverview(startDate, endDate),
                 loadAnalytics(startDate, endDate),
                 loadConversion(startDate, endDate),
-                loadBehavior(startDate, endDate)
+                loadBehavior(startDate, endDate),
+                loadUTMAnalytics(startDate, endDate)
             ]);
+        }
+        
+        // ==========================================
+        // トラッキングリンク機能
+        // ==========================================
+        
+        const SITE_URL = 'https://marriage-type.com';
+        
+        // トラッキングリンク生成
+        function generateTrackingLink() {
+            const campaign = document.getElementById('utm-campaign').value.trim();
+            const source = document.getElementById('utm-source').value;
+            const medium = document.getElementById('utm-medium').value;
+            
+            if (!campaign) {
+                alert('キャンペーン名を入力してください');
+                return;
+            }
+            if (!source) {
+                alert('流入元を選択してください');
+                return;
+            }
+            
+            // URLを生成
+            const params = new URLSearchParams({
+                utm_source: source,
+                utm_medium: medium,
+                utm_campaign: campaign
+            });
+            
+            const trackingUrl = `${SITE_URL}/?${params.toString()}`;
+            
+            document.getElementById('generated-link').value = trackingUrl;
+            document.getElementById('generated-link-area').style.display = 'block';
+            document.getElementById('copy-success').style.display = 'none';
+        }
+        
+        // リンクをコピー
+        function copyTrackingLink() {
+            const linkInput = document.getElementById('generated-link');
+            const text = linkInput.value;
+            
+            // モダンなClipboard APIを優先、フォールバックでexecCommand
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showCopySuccess();
+                }).catch(() => {
+                    // フォールバック
+                    fallbackCopy(linkInput);
+                });
+            } else {
+                fallbackCopy(linkInput);
+            }
+        }
+        
+        function fallbackCopy(input) {
+            input.select();
+            document.execCommand('copy');
+            showCopySuccess();
+        }
+        
+        function showCopySuccess() {
+            document.getElementById('copy-success').style.display = 'block';
+            setTimeout(() => {
+                document.getElementById('copy-success').style.display = 'none';
+            }, 3000);
+        }
+        
+        // UTM分析読み込み
+        async function loadUTMAnalytics(startDate, endDate) {
+            try {
+                const res = await fetch(
+                    `${API_BASE}/api/admin/analytics/utm?startDate=${startDate}&endDate=${endDate}`,
+                    { headers: { 'X-API-Key': apiKey } }
+                );
+                const data = await res.json();
+                
+                renderCampaignStats(data.campaigns, data.totalTracked, data.directCount);
+                renderSourceStats(data.sources);
+                renderMediumStats(data.mediums);
+                
+            } catch (error) {
+                console.error('Error loading UTM analytics:', error);
+            }
+        }
+        
+        // キャンペーン統計描画
+        function renderCampaignStats(campaigns, totalTracked, directCount) {
+            const container = document.getElementById('campaign-stats');
+            
+            if (!campaigns || campaigns.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; color: #888; padding: 30px;">
+                        <p style="font-size: 1.1rem; margin-bottom: 10px;">まだトラッキングデータがありません</p>
+                        <p style="font-size: 0.9rem;">左のフォームでリンクを生成して<br>SNSなどに貼ってみましょう</p>
+                    </div>
+                    <div style="margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; color: #666;">
+                            <span>直接アクセス（リンクなし）</span>
+                            <strong>${(directCount || 0).toLocaleString()}</strong>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            const maxCount = Math.max(...campaigns.map(c => c.count));
+            
+            container.innerHTML = `
+                <div style="margin-bottom: 15px; padding: 12px; background: #e8f4fd; border-radius: 8px; display: flex; justify-content: space-between;">
+                    <span style="color: #555;">トラッキング経由</span>
+                    <strong style="color: #7EB8DA;">${totalTracked.toLocaleString()}</strong>
+                </div>
+                <div style="margin-bottom: 15px; padding: 12px; background: #f0f0f0; border-radius: 8px; display: flex; justify-content: space-between;">
+                    <span style="color: #666;">直接アクセス</span>
+                    <strong style="color: #888;">${directCount.toLocaleString()}</strong>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 10px; max-height: 300px; overflow-y: auto;">
+                    ${campaigns.map((c, i) => `
+                        <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: #f8f9fa; border-radius: 8px;">
+                            <span style="min-width: 25px; height: 25px; background: ${i < 3 ? 'linear-gradient(135deg, #FFD700, #FFA500)' : '#e0e0e0'}; color: ${i < 3 ? 'white' : '#666'}; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: bold;">${i + 1}</span>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500; color: #333; margin-bottom: 3px;">${c.campaign}</div>
+                                <div style="background: #e0e0e0; height: 6px; border-radius: 3px; overflow: hidden;">
+                                    <div style="width: ${c.count / maxCount * 100}%; height: 100%; background: linear-gradient(90deg, #7EB8DA, #F5A5B8); border-radius: 3px;"></div>
+                                </div>
+                            </div>
+                            <strong style="color: #7EB8DA; min-width: 50px; text-align: right;">${c.count.toLocaleString()}</strong>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        // ソース統計描画
+        function renderSourceStats(sources) {
+            const container = document.getElementById('utm-source-stats');
+            
+            if (!sources || sources.length === 0) {
+                container.innerHTML = '<div class="no-data">データがありません</div>';
+                return;
+            }
+            
+            const sourceLabels = {
+                'twitter': '🐦 X（Twitter）',
+                'instagram': '📷 Instagram',
+                'line': '💬 LINE',
+                'tiktok': '🎵 TikTok',
+                'youtube': '▶️ YouTube',
+                'facebook': '📘 Facebook',
+                'google': '🔍 Google広告',
+                'yahoo': '🔎 Yahoo広告',
+                'blog': '📝 ブログ',
+                'email': '📧 メール',
+                'qr': '📱 QRコード',
+                'other': '🔗 その他'
+            };
+            
+            const total = sources.reduce((sum, s) => sum + s.count, 0);
+            
+            container.innerHTML = sources.map(s => `
+                <div class="page-item">
+                    <div class="page-name">${sourceLabels[s.source] || s.source}</div>
+                    <div style="color: #888; font-size: 0.85rem;">${Math.round(s.count / total * 100)}%</div>
+                    <div class="page-count">${s.count.toLocaleString()}</div>
+                </div>
+            `).join('');
+        }
+        
+        // メディア統計描画
+        function renderMediumStats(mediums) {
+            const container = document.getElementById('utm-medium-stats');
+            
+            if (!mediums || mediums.length === 0) {
+                container.innerHTML = '<div class="no-data">データがありません</div>';
+                return;
+            }
+            
+            const mediumLabels = {
+                'social': '📱 SNS投稿',
+                'story': '📸 ストーリー/リール',
+                'profile': '👤 プロフィール',
+                'ad': '💰 広告',
+                'organic': '🌱 オーガニック',
+                'referral': '🤝 紹介',
+                'dm': '✉️ DM',
+                'email': '📧 メール'
+            };
+            
+            const total = mediums.reduce((sum, m) => sum + m.count, 0);
+            
+            container.innerHTML = mediums.map(m => `
+                <div class="page-item">
+                    <div class="page-name">${mediumLabels[m.medium] || m.medium}</div>
+                    <div style="color: #888; font-size: 0.85rem;">${Math.round(m.count / total * 100)}%</div>
+                    <div class="page-count">${m.count.toLocaleString()}</div>
+                </div>
+            `).join('');
         }
         
         // 概要データ読み込み
@@ -1082,8 +1432,8 @@
                 // トレンドチャート
                 renderTrendChart(anaData.dailyViews, anaData.dailyDiagnosis);
                 
-                // 最近の診断結果
-                const recentRes = await fetch(`${API_BASE}/api/admin/diagnosis/recent?limit=20`, {
+                // 最近の診断結果（50件に増加）
+                const recentRes = await fetch(`${API_BASE}/api/admin/diagnosis/recent?limit=50`, {
                     headers: { 'X-API-Key': apiKey }
                 });
                 const recentData = await recentRes.json();
@@ -1158,6 +1508,23 @@
         // 行動分析読み込み
         async function loadBehavior(startDate, endDate) {
             try {
+                // 離脱分析
+                const dropoutRes = await fetch(
+                    `${API_BASE}/api/admin/analytics/dropout?startDate=${startDate}&endDate=${endDate}`,
+                    { headers: { 'X-API-Key': apiKey } }
+                );
+                const dropoutData = await dropoutRes.json();
+                renderDropoutAnalysis(dropoutData);
+                
+                // 流入元詳細
+                const trafficRes = await fetch(
+                    `${API_BASE}/api/admin/analytics/traffic-sources?startDate=${startDate}&endDate=${endDate}`,
+                    { headers: { 'X-API-Key': apiKey } }
+                );
+                const trafficData = await trafficRes.json();
+                renderTrafficSources(trafficData);
+                renderDeviceDetails(trafficData.devices);
+                
                 // 時間帯別
                 const hourlyRes = await fetch(
                     `${API_BASE}/api/admin/analytics/hourly?startDate=${startDate}&endDate=${endDate}`,
@@ -1185,6 +1552,133 @@
             } catch (error) {
                 console.error('Error loading behavior:', error);
             }
+        }
+        
+        // 離脱分析描画
+        function renderDropoutAnalysis(data) {
+            document.getElementById('dropout-total-sessions').textContent = (data.totalSessions || 0).toLocaleString();
+            document.getElementById('dropout-completed').textContent = (data.completedCount || 0).toLocaleString();
+            document.getElementById('dropout-completion-rate').textContent = (data.completionRate || 0) + '%';
+            
+            const container = document.getElementById('dropout-funnel');
+            
+            if (!data.funnel || data.funnel.length === 0 || data.totalSessions === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; color: #888; padding: 30px;">
+                        <p style="font-size: 1.1rem; margin-bottom: 10px;">まだ離脱データがありません</p>
+                        <p style="font-size: 0.9rem;">診断が開始されるとデータが蓄積されます</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const maxReached = Math.max(...data.funnel.map(f => f.reached));
+            
+            container.innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    ${data.funnel.map((step, i) => {
+                        const width = maxReached > 0 ? (step.reached / maxReached * 100) : 0;
+                        const isHighDropout = step.dropoutRate > 20;
+                        const label = step.label || `Q${step.question}`;
+                        return `
+                            <div style="display: flex; align-items: center; gap: 15px;">
+                                <div style="min-width: 140px; font-weight: 500; color: #555; font-size: 0.9rem;">${label}</div>
+                                <div style="flex: 1; background: #f0f0f0; border-radius: 6px; height: 30px; overflow: hidden;">
+                                    <div style="width: ${Math.max(width, 5)}%; height: 100%; background: linear-gradient(90deg, #7EB8DA, ${isHighDropout ? '#F5A5B8' : '#6BCB9E'}); display: flex; align-items: center; padding-left: 10px; color: white; font-weight: 500; font-size: 0.85rem;">
+                                        ${step.reached.toLocaleString()}
+                                    </div>
+                                </div>
+                                <div style="min-width: 80px; text-align: right;">
+                                    ${i > 0 ? `<span style="color: ${isHighDropout ? '#e74c3c' : '#888'}; font-size: 0.85rem;">-${step.dropoutRate}%</span>` : '<span style="color: #888; font-size: 0.85rem;">開始</span>'}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+                <div style="margin-top: 15px; padding: 12px; background: #fff8e7; border-radius: 8px; font-size: 0.9rem; color: #666;">
+                    💡 <strong>離脱率が20%を超えるステップ</strong>はピンク色で表示されます。そのページの設問を見直すと完了率が上がるかもしれません。
+                </div>
+            `;
+        }
+        
+        // 流入元詳細描画
+        function renderTrafficSources(data) {
+            const container = document.getElementById('traffic-sources');
+            const { sources, total } = data;
+            
+            if (total === 0) {
+                container.innerHTML = '<div class="no-data">データがありません</div>';
+                return;
+            }
+            
+            const sourceOrder = ['utm_tracked', 'organic_search', 'social', 'referral', 'direct'];
+            
+            container.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                    ${sourceOrder.map(key => {
+                        const s = sources[key];
+                        const percent = total > 0 ? Math.round(s.count / total * 100) : 0;
+                        const colors = {
+                            utm_tracked: '#7EB8DA',
+                            organic_search: '#6BCB9E',
+                            social: '#F5A5B8',
+                            referral: '#F5A623',
+                            direct: '#888'
+                        };
+                        return `
+                            <div style="background: white; border: 2px solid ${colors[key]}20; border-radius: 12px; padding: 15px;">
+                                <div style="font-size: 0.9rem; color: #666; margin-bottom: 5px;">${s.label}</div>
+                                <div style="font-size: 1.8rem; font-weight: bold; color: ${colors[key]};">${s.count.toLocaleString()}</div>
+                                <div style="font-size: 0.85rem; color: #888;">${percent}%</div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+                    ${sourceOrder.filter(key => sources[key].details.length > 0).map(key => {
+                        const s = sources[key];
+                        return `
+                            <div style="background: #f8f9fa; border-radius: 10px; padding: 15px;">
+                                <div style="font-weight: 600; color: #333; margin-bottom: 10px;">${s.label} 詳細</div>
+                                ${s.details.map((d, i) => `
+                                    <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #e0e0e0; font-size: 0.9rem;">
+                                        <span style="color: #555;">${i + 1}. ${d.name}</span>
+                                        <strong style="color: #7EB8DA;">${d.count.toLocaleString()}</strong>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+        
+        // デバイス詳細描画
+        function renderDeviceDetails(devices) {
+            const container = document.getElementById('device-details');
+            
+            const deviceInfo = [
+                { key: 'ios', label: '🍎 iOS（iPhone/iPad）', color: '#333' },
+                { key: 'android', label: '🤖 Android', color: '#3DDC84' },
+                { key: 'pc_mac', label: '💻 Mac', color: '#555' },
+                { key: 'pc_windows', label: '🖥️ Windows', color: '#0078D4' },
+                { key: 'other', label: '❓ その他', color: '#888' }
+            ];
+            
+            const total = Object.values(devices).reduce((sum, d) => sum + d.count, 0);
+            
+            container.innerHTML = `
+                <div style="display: flex; flex-wrap: wrap; gap: 15px;">
+                    ${deviceInfo.map(d => `
+                        <div style="flex: 1; min-width: 150px; background: #f8f9fa; border-radius: 10px; padding: 15px; text-align: center;">
+                            <div style="font-size: 0.85rem; color: #666; margin-bottom: 5px;">${d.label}</div>
+                            <div style="font-size: 1.5rem; font-weight: bold; color: ${d.color};">${devices[d.key].count.toLocaleString()}</div>
+                            <div style="font-size: 0.85rem; color: #888;">${devices[d.key].percent}%</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
         }
         
         // タイプ別統計の描画
@@ -1256,6 +1750,18 @@
             });
         }
         
+        // 日本時間でフォーマット
+        function formatJSTDateTime(dateStr) {
+            const date = new Date(dateStr);
+            // 日本時間に変換（UTC+9時間）
+            const jstDate = new Date(date.getTime() + (9 * 60 * 60 * 1000));
+            const month = jstDate.getUTCMonth() + 1;
+            const day = jstDate.getUTCDate();
+            const hours = jstDate.getUTCHours();
+            const minutes = String(jstDate.getUTCMinutes()).padStart(2, '0');
+            return `${month}/${day} ${hours}:${minutes}`;
+        }
+        
         // 最近の診断結果リスト
         function renderRecentList(data) {
             const container = document.getElementById('recentList');
@@ -1266,8 +1772,7 @@
             }
             
             container.innerHTML = data.map(item => {
-                const date = new Date(item.created_at);
-                const timeStr = `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+                const timeStr = formatJSTDateTime(item.created_at);
                 return `
                     <div class="recent-item">
                         <div>
