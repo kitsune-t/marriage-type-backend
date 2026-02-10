@@ -285,6 +285,10 @@
             color: #F5A623;
         }
         
+        .stat-card[style*="--accent"] .value {
+            color: var(--accent, #333);
+        }
+        
         .card {
             background: white;
             padding: 25px;
@@ -704,6 +708,7 @@
             <!-- タブナビゲーション -->
             <div class="tabs">
                 <button class="tab-btn active" data-tab="overview">📊 概要</button>
+                <button class="tab-btn" data-tab="diagnosis-codes">🔑 診断コード</button>
                 <button class="tab-btn" data-tab="analysis">📈 詳細分析</button>
                 <button class="tab-btn" data-tab="conversion">🎯 コンバージョン</button>
                 <button class="tab-btn" data-tab="behavior">⏰ 行動分析</button>
@@ -748,6 +753,21 @@
                         <h3>🆕 今日の診断</h3>
                         <div class="value" id="todayDiagnosis">-</div>
                     </div>
+                    <div class="stat-card" style="--accent: #E91E63;">
+                        <h3>💕 恋愛占い（期間）</h3>
+                        <div class="value" id="periodLoveFortune">-</div>
+                        <div class="sub-value">総計: <span id="totalLoveFortune">-</span> / 今日: <span id="todayLoveFortune">-</span></div>
+                    </div>
+                    <div class="stat-card" style="--accent: #9C27B0;">
+                        <h3>🤝 相性診断（期間）</h3>
+                        <div class="value" id="periodCompatibility">-</div>
+                        <div class="sub-value">総計: <span id="totalCompatibility">-</span> / 今日: <span id="todayCompatibility">-</span></div>
+                    </div>
+                    <div class="stat-card" style="--accent: #009688;">
+                        <h3>🔑 診断コード発行（期間）</h3>
+                        <div class="value" id="periodDiagnosisCode">-</div>
+                        <div class="sub-value">総計: <span id="totalDiagnosisCode">-</span> / 今日: <span id="todayDiagnosisCode">-</span></div>
+                    </div>
                 </div>
                 
                 <div class="card">
@@ -771,6 +791,27 @@
                             <div class="loading">読み込み中...</div>
                         </div>
                     </div>
+                </div>
+            </div>
+            
+            <!-- 診断コードタブ -->
+            <div class="tab-content" id="tab-diagnosis-codes">
+                <div class="card">
+                    <h2><span class="icon">🔑</span> 発行された診断コード一覧</h2>
+                    <p style="color: #666; margin-bottom: 20px;">選択した期間に発行された診断コード（相性診断用）の一覧です。コード・タイプ・発行日時を確認できます。</p>
+                    <div class="date-filter" style="margin-bottom: 15px;">
+                        <label>期間:</label>
+                        <input type="date" id="codeStartDate">
+                        <span>〜</span>
+                        <input type="date" id="codeEndDate">
+                        <button class="apply-btn" onclick="loadDiagnosisCodesList()">表示</button>
+                    </div>
+                    <div id="diagnosis-codes-list" style="max-height: 600px; overflow-y: auto;">
+                        <div class="loading">読み込み中...</div>
+                    </div>
+                    <button class="export-btn" onclick="exportDiagnosisCodesCsv()" style="margin-top: 15px;">
+                        <span>💾</span> 診断コード一覧をCSV出力
+                    </button>
                 </div>
             </div>
             
@@ -1158,6 +1199,14 @@
             document.querySelectorAll('.tab-content').forEach(content => {
                 content.classList.toggle('active', content.id === `tab-${tabId}`);
             });
+            if (tabId === 'diagnosis-codes') {
+                const { startDate, endDate } = getDateRange();
+                const codeStart = document.getElementById('codeStartDate');
+                const codeEnd = document.getElementById('codeEndDate');
+                if (codeStart) codeStart.value = startDate;
+                if (codeEnd) codeEnd.value = endDate;
+                loadDiagnosisCodesList();
+            }
         }
         
         // 日本時間（JST, UTC+9）でYYYY-MM-DD形式の日付を取得
@@ -1175,11 +1224,14 @@
             const now = new Date();
             const end = now;
             const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-            
-            // 日本時間で日付を設定
-            document.getElementById('startDate').value = getJSTDateString(start);
-            document.getElementById('endDate').value = getJSTDateString(end);
-            
+            const startStr = getJSTDateString(start);
+            const endStr = getJSTDateString(end);
+            document.getElementById('startDate').value = startStr;
+            document.getElementById('endDate').value = endStr;
+            const codeStart = document.getElementById('codeStartDate');
+            const codeEnd = document.getElementById('codeEndDate');
+            if (codeStart) codeStart.value = startStr;
+            if (codeEnd) codeEnd.value = endStr;
             document.querySelectorAll('.preset-btn').forEach(btn => {
                 btn.classList.toggle('active', parseInt(btn.dataset.days) === days);
             });
@@ -1212,6 +1264,7 @@
             try {
                 await Promise.all([
                     loadOverview(startDate, endDate),
+                    loadFeaturesAnalytics(startDate, endDate),
                     loadAnalytics(startDate, endDate),
                     loadConversion(startDate, endDate),
                     loadBehavior(startDate, endDate),
@@ -1557,6 +1610,94 @@
             } catch (error) {
                 console.error('Error loading overview:', error);
             }
+        }
+        
+        async function loadFeaturesAnalytics(startDate, endDate) {
+            try {
+                const res = await fetch(`${API_BASE}/api/admin/analytics/features?startDate=${startDate}&endDate=${endDate}`, {
+                    headers: { 'X-API-Key': apiKey }
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                const ids = ['periodLoveFortune','totalLoveFortune','todayLoveFortune','periodCompatibility','totalCompatibility','todayCompatibility','periodDiagnosisCode','totalDiagnosisCode','todayDiagnosisCode'];
+                const keys = [
+                    data.loveFortune && data.loveFortune.period, data.loveFortune && data.loveFortune.total, data.loveFortune && data.loveFortune.today,
+                    data.compatibility && data.compatibility.period, data.compatibility && data.compatibility.total, data.compatibility && data.compatibility.today,
+                    data.diagnosisCode && data.diagnosisCode.period, data.diagnosisCode && data.diagnosisCode.total, data.diagnosisCode && data.diagnosisCode.today
+                ];
+                ids.forEach((id, i) => {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = (keys[i] != null ? keys[i] : 0).toLocaleString();
+                });
+            } catch (e) { console.error('loadFeaturesAnalytics', e); }
+        }
+        
+        let lastDiagnosisCodesList = [];
+        
+        async function loadDiagnosisCodesList() {
+            const startDate = document.getElementById('codeStartDate')?.value || document.getElementById('startDate')?.value;
+            const endDate = document.getElementById('codeEndDate')?.value || document.getElementById('endDate')?.value;
+            const container = document.getElementById('diagnosis-codes-list');
+            if (!container) return;
+            container.innerHTML = '<div class="loading">読み込み中...</div>';
+            try {
+                const res = await fetch(`${API_BASE}/api/admin/diagnosis-codes?startDate=${startDate}&endDate=${endDate}&limit=200`, {
+                    headers: { 'X-API-Key': apiKey }
+                });
+                const data = await res.json();
+                lastDiagnosisCodesList = data.list || [];
+                if (lastDiagnosisCodesList.length === 0) {
+                    container.innerHTML = '<div class="no-data">この期間に発行された診断コードはありません</div>';
+                    return;
+                }
+                container.innerHTML = `
+                    <table style="width:100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: #f5f7fa; border-bottom: 2px solid #e0e0e0;">
+                                <th style="text-align:left; padding: 12px;">コード</th>
+                                <th style="text-align:left; padding: 12px;">タイプ</th>
+                                <th style="text-align:left; padding: 12px;">発行日時</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${lastDiagnosisCodesList.map(r => `
+                                <tr style="border-bottom: 1px solid #eee;">
+                                    <td style="padding: 10px 12px; font-weight: 600; color: #009688;">${r.code || '-'}</td>
+                                    <td style="padding: 10px 12px;">${r.type || '-'}</td>
+                                    <td style="padding: 10px 12px; color: #666; font-size: 0.9rem;">${formatJSTDateTime(r.created_at)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (e) {
+                container.innerHTML = '<div class="no-data">読み込みに失敗しました</div>';
+                console.error('loadDiagnosisCodesList', e);
+            }
+        }
+        
+        function exportDiagnosisCodesCsv() {
+            const { startDate, endDate } = getDateRange();
+            const start = document.getElementById('codeStartDate')?.value || startDate;
+            const end = document.getElementById('codeEndDate')?.value || endDate;
+            fetch(`${API_BASE}/api/admin/diagnosis-codes?startDate=${start}&endDate=${end}&limit=1000`, {
+                headers: { 'X-API-Key': apiKey }
+            })
+            .then(res => res.json())
+            .then(data => {
+                const list = data.list || [];
+                const header = 'コード,タイプ,発行日時\n';
+                const rows = list.map(r => `${r.code || ''},${r.type || ''},${r.created_at || ''}`).join('\n');
+                const csv = '\uFEFF' + header + rows;
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `diagnosis_codes_${start}_${end}.csv`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+            })
+            .catch(err => alert('エクスポートに失敗しました'));
         }
         
         // 詳細分析読み込み

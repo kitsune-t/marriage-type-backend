@@ -176,6 +176,63 @@ app.post('/api/track/diagnosis', async (req, res) => {
     }
 });
 
+// 恋愛占い実行記録（管理分析用）
+app.post('/api/track/love-fortune', async (req, res) => {
+    try {
+        const { typeCode, gender, hasLover } = req.body;
+        const { error } = await supabase
+            .from('feature_events')
+            .insert({
+                event_type: 'love_fortune',
+                payload: { type_code: typeCode || null, gender: gender || null, has_lover: hasLover || null }
+            });
+        if (error) throw error;
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error tracking love-fortune:', error);
+        res.status(500).json({ error: 'Failed to track love-fortune' });
+    }
+});
+
+// 相性診断実行記録（管理分析用）
+app.post('/api/track/compatibility', async (req, res) => {
+    try {
+        const { myType, partnerType } = req.body;
+        const { error } = await supabase
+            .from('feature_events')
+            .insert({
+                event_type: 'compatibility',
+                payload: { my_type: myType || null, partner_type: partnerType || null }
+            });
+        if (error) throw error;
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error tracking compatibility:', error);
+        res.status(500).json({ error: 'Failed to track compatibility' });
+    }
+});
+
+// 診断コード発行記録（管理分析用）
+app.post('/api/track/diagnosis-code', async (req, res) => {
+    try {
+        const { code, type } = req.body;
+        if (!code || !type) {
+            return res.status(400).json({ error: 'code and type required' });
+        }
+        const { error } = await supabase
+            .from('feature_events')
+            .insert({
+                event_type: 'diagnosis_code',
+                payload: { code: String(code).toUpperCase(), type: String(type).toUpperCase() }
+            });
+        if (error) throw error;
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error tracking diagnosis-code:', error);
+        res.status(500).json({ error: 'Failed to track diagnosis-code' });
+    }
+});
+
 // ==========================================
 // API: 統計データ取得（管理画面用）
 // ==========================================
@@ -323,6 +380,94 @@ app.get('/api/admin/diagnosis/recent', adminAuth, async (req, res) => {
     } catch (error) {
         console.error('Error getting recent diagnosis:', error);
         res.status(500).json({ error: 'Failed to get recent diagnosis' });
+    }
+});
+
+// 機能別イベント数（恋愛占い・相性診断・診断コード発行）
+app.get('/api/admin/analytics/features', adminAuth, async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const start = (startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + 'T00:00:00.000Z';
+        const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59.999Z';
+
+        const todayJST = getJSTDateString();
+        const todayStartJST = new Date(todayJST + 'T00:00:00+09:00');
+        const todayEndJST = new Date(todayJST + 'T23:59:59.999+09:00');
+        const todayStart = todayStartJST.toISOString();
+        const todayEnd = todayEndJST.toISOString();
+
+        const { data: allRows } = await supabase
+            .from('feature_events')
+            .select('id, event_type, payload, created_at')
+            .order('created_at', { ascending: false })
+            .limit(100000);
+
+        const inRange = (rows, startStr, endStr) => {
+            return (rows || []).filter(r => {
+                const t = (r.created_at && r.created_at.endsWith('Z') ? r.created_at : new Date(r.created_at).toISOString());
+                return t >= startStr && t <= endStr;
+            });
+        };
+
+        const periodRows = inRange(allRows, start, end);
+        const todayRows = inRange(allRows, todayStart, todayEnd);
+
+        const countByType = (rows, type) => rows.filter(r => r.event_type === type).length;
+
+        res.json({
+            period: { start: startDate, end: endDate },
+            loveFortune: {
+                total: (allRows || []).filter(r => r.event_type === 'love_fortune').length,
+                period: countByType(periodRows, 'love_fortune'),
+                today: countByType(todayRows, 'love_fortune')
+            },
+            compatibility: {
+                total: (allRows || []).filter(r => r.event_type === 'compatibility').length,
+                period: countByType(periodRows, 'compatibility'),
+                today: countByType(todayRows, 'compatibility')
+            },
+            diagnosisCode: {
+                total: (allRows || []).filter(r => r.event_type === 'diagnosis_code').length,
+                period: countByType(periodRows, 'diagnosis_code'),
+                today: countByType(todayRows, 'diagnosis_code')
+            }
+        });
+    } catch (error) {
+        console.error('Error getting feature analytics:', error);
+        res.status(500).json({ error: 'Failed to get feature analytics' });
+    }
+});
+
+// 発行された診断コード一覧（管理画面用）
+app.get('/api/admin/diagnosis-codes', adminAuth, async (req, res) => {
+    try {
+        const { startDate, endDate, limit } = req.query;
+        const limitNum = Math.min(parseInt(limit) || 100, 500);
+        const start = (startDate || '2020-01-01') + 'T00:00:00';
+        const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
+
+        const { data, error } = await supabase
+            .from('feature_events')
+            .select('id, event_type, payload, created_at')
+            .eq('event_type', 'diagnosis_code')
+            .gte('created_at', start)
+            .lte('created_at', end)
+            .order('created_at', { ascending: false })
+            .limit(limitNum);
+
+        if (error) throw error;
+
+        const list = (data || []).map(r => ({
+            id: r.id,
+            code: (r.payload && r.payload.code) || '',
+            type: (r.payload && r.payload.type) || '',
+            created_at: r.created_at
+        }));
+
+        res.json({ list, total: list.length });
+    } catch (error) {
+        console.error('Error getting diagnosis codes:', error);
+        res.status(500).json({ error: 'Failed to get diagnosis codes' });
     }
 });
 
