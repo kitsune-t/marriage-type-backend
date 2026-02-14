@@ -569,13 +569,24 @@ app.get('/api/admin/analytics', adminAuth, async (req, res) => {
             .gte('created_at', start)
             .lte('created_at', end);
         
-        // 期間内のUU数
+        // 期間内のUU数（全件取得のため明示的にlimit。Supabaseデフォルト1000で打ち切られないように）
         const { data: periodIpData } = await supabase
             .from('page_views')
             .select('ip')
             .gte('created_at', start)
-            .lte('created_at', end);
+            .lte('created_at', end)
+            .limit(100000);
         const periodUU = new Set((periodIpData || []).map(d => d.ip).filter(ip => ip)).size;
+
+        // ホームを1回以上表示したUU（95%ホーム経由の検証用）
+        const { data: homeIpData } = await supabase
+            .from('page_views')
+            .select('ip')
+            .eq('page', 'home')
+            .gte('created_at', start)
+            .lte('created_at', end)
+            .limit(100000);
+        const homeViewedUU = new Set((homeIpData || []).map(d => d.ip).filter(ip => ip)).size;
         
         // 期間内の診断数
         const { count: periodDiagnosis } = await supabase
@@ -641,6 +652,7 @@ app.get('/api/admin/analytics', adminAuth, async (req, res) => {
             period: { start: startDate, end: endDate },
             periodViews: periodViews || 0,
             periodUU: periodUU || 0,
+            periodHomeViewedUU: homeViewedUU || 0,
             periodDiagnosis: periodDiagnosis || 0,
             dailyViews: dailyViewsArray,
             dailyUU: dailyUUArray,

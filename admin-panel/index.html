@@ -737,7 +737,8 @@
                     <div class="stat-card primary">
                         <h3>📊 期間内アクセス（全PV）</h3>
                         <div class="value" id="periodViews">-</div>
-                        <div class="sub-value">UU: <span id="periodUU">-</span> / 総PV: <span id="totalViews">-</span></div>
+                        <div class="sub-value">UU: <span id="periodUU">-</span> / ホーム表示UU: <span id="periodHomeViewedUU">-</span> / 総PV: <span id="totalViews">-</span></div>
+                        <div class="sub-value" style="font-size:0.8rem; color:#666;">※ホーム表示UU＝トップを1回以上見た人数。UUに近いほど「ほぼホーム経由」の検証になります。</div>
                     </div>
                     <div class="stat-card secondary">
                         <h3>✅ 期間内診断数</h3>
@@ -887,7 +888,7 @@
                 
                 <div class="card">
                     <h2><span class="icon">🔽</span> コンバージョンファネル</h2>
-                    <p style="color: #666; margin-bottom: 16px; font-size: 0.9rem;">「ホーム」はトップページの表示数のみです。概要の「期間内アクセス」は<strong>全ページのPV合計</strong>（ホーム・クイズ・結果・相性診断・恋愛占いなど）なので、ホームより多くなります。「クイズ開始」はホーム経由＋<strong>診断から開始リンク</strong>経由の合計です。</p>
+                    <p style="color: #666; margin-bottom: 16px; font-size: 0.9rem;">「ホーム」はトップページの表示数のみです。概要の「期間内アクセス」は<strong>全ページのPV合計</strong>（ホーム・クイズ・結果・相性診断・恋愛占いなど）なので、ホームより多くなります。「クイズ開始」はホーム経由＋<strong>診断から開始リンク</strong>経由の合計です。ほぼ全員ホーム経由なのにホーム数がUUの4割程度の場合は、概要の<strong>「ホーム表示UU」</strong>を確認してください。ホーム表示UUがUUに近ければ計測漏れの可能性があります。</p>
                     <p style="color: #555; margin-bottom: 12px; font-size: 0.9rem;" id="quiz-direct-note"></p>
                     <div class="funnel" id="funnel">
                         <div class="loading">読み込み中...</div>
@@ -1674,6 +1675,10 @@
                 
                 document.getElementById('periodViews').textContent = anaData.periodViews.toLocaleString();
                 document.getElementById('periodUU').textContent = (anaData.periodUU || 0).toLocaleString();
+                const homeViewedUU = anaData.periodHomeViewedUU != null ? anaData.periodHomeViewedUU : 0;
+                document.getElementById('periodHomeViewedUU').textContent = homeViewedUU.toLocaleString();
+                const uuPct = anaData.periodUU > 0 ? Math.round(homeViewedUU / anaData.periodUU * 100) : 0;
+                document.getElementById('periodHomeViewedUU').title = `UUの${uuPct}%がホームを表示`;
                 document.getElementById('periodDiagnosis').textContent = anaData.periodDiagnosis.toLocaleString();
                 
                 // タイプ別統計
