@@ -176,15 +176,23 @@ app.post('/api/track/diagnosis', async (req, res) => {
     }
 });
 
-// 恋愛占い実行記録（管理分析用）
+// UU用: リクエストからIPを取得（feature_events用）
+function getClientIp(req) {
+    const raw = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+    return (typeof raw === 'string' ? raw.split(',')[0].trim() : raw) || null;
+}
+
+// 恋愛占い実行記録（管理分析用・UU対応）
 app.post('/api/track/love-fortune', async (req, res) => {
     try {
         const { typeCode, gender, hasLover } = req.body;
+        const ip = getClientIp(req);
         const { error } = await supabase
             .from('feature_events')
             .insert({
                 event_type: 'love_fortune',
-                payload: { type_code: typeCode || null, gender: gender || null, has_lover: hasLover || null }
+                payload: { type_code: typeCode || null, gender: gender || null, has_lover: hasLover || null },
+                ip: ip || null
             });
         if (error) throw error;
         res.json({ success: true });
@@ -194,15 +202,17 @@ app.post('/api/track/love-fortune', async (req, res) => {
     }
 });
 
-// 相性診断実行記録（管理分析用）
+// 相性診断実行記録（管理分析用・UU対応）
 app.post('/api/track/compatibility', async (req, res) => {
     try {
         const { myType, partnerType } = req.body;
+        const ip = getClientIp(req);
         const { error } = await supabase
             .from('feature_events')
             .insert({
                 event_type: 'compatibility',
-                payload: { my_type: myType || null, partner_type: partnerType || null }
+                payload: { my_type: myType || null, partner_type: partnerType || null },
+                ip: ip || null
             });
         if (error) throw error;
         res.json({ success: true });
@@ -219,11 +229,13 @@ app.post('/api/track/diagnosis-code', async (req, res) => {
         if (!code || !type) {
             return res.status(400).json({ error: 'code and type required' });
         }
+        const ip = getClientIp(req);
         const { error } = await supabase
             .from('feature_events')
             .insert({
                 event_type: 'diagnosis_code',
-                payload: { code: String(code).toUpperCase(), type: String(type).toUpperCase() }
+                payload: { code: String(code).toUpperCase(), type: String(type).toUpperCase() },
+                ip: ip || null
             });
         if (error) throw error;
         res.json({ success: true });
@@ -398,7 +410,7 @@ app.get('/api/admin/analytics/features', adminAuth, async (req, res) => {
 
         const { data: allRows } = await supabase
             .from('feature_events')
-            .select('id, event_type, payload, created_at')
+            .select('id, event_type, payload, created_at, ip')
             .order('created_at', { ascending: false })
             .limit(100000);
 
@@ -413,18 +425,38 @@ app.get('/api/admin/analytics/features', adminAuth, async (req, res) => {
         const todayRows = inRange(allRows, todayStart, todayEnd);
 
         const countByType = (rows, type) => rows.filter(r => r.event_type === type).length;
+        // 日ごとにユニークIP数を数え、その合計を期間UUとする（同一人が3日で5回→3とカウント）
+        const uniqueIpByTypeDailySum = (rows, type) => {
+            const byDate = {};
+            (rows || []).filter(r => r.event_type === type && r.ip).forEach(r => {
+                const date = getJSTDateString(new Date(r.created_at));
+                if (!byDate[date]) byDate[date] = new Set();
+                byDate[date].add(r.ip);
+            });
+            return Object.values(byDate).reduce((sum, set) => sum + set.size, 0);
+        };
+        const uniqueIpByType = (rows, type) => {
+            const ips = new Set(
+                (rows || []).filter(r => r.event_type === type && r.ip).map(r => r.ip)
+            );
+            return ips.size;
+        };
 
         res.json({
             period: { start: startDate, end: endDate },
             loveFortune: {
                 total: (allRows || []).filter(r => r.event_type === 'love_fortune').length,
                 period: countByType(periodRows, 'love_fortune'),
-                today: countByType(todayRows, 'love_fortune')
+                today: countByType(todayRows, 'love_fortune'),
+                periodUU: uniqueIpByTypeDailySum(periodRows, 'love_fortune'),
+                todayUU: uniqueIpByType(todayRows, 'love_fortune')
             },
             compatibility: {
                 total: (allRows || []).filter(r => r.event_type === 'compatibility').length,
                 period: countByType(periodRows, 'compatibility'),
-                today: countByType(todayRows, 'compatibility')
+                today: countByType(todayRows, 'compatibility'),
+                periodUU: uniqueIpByTypeDailySum(periodRows, 'compatibility'),
+                todayUU: uniqueIpByType(todayRows, 'compatibility')
             },
             diagnosisCode: {
                 total: (allRows || []).filter(r => r.event_type === 'diagnosis_code').length,
@@ -435,6 +467,54 @@ app.get('/api/admin/analytics/features', adminAuth, async (req, res) => {
     } catch (error) {
         console.error('Error getting feature analytics:', error);
         res.status(500).json({ error: 'Failed to get feature analytics' });
+    }
+});
+
+// 恋愛占い・相性診断の日別推移（グラフ用）
+app.get('/api/admin/analytics/features/daily', adminAuth, async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const start = (startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + 'T00:00:00.000Z';
+        const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59.999Z';
+
+        const { data: allRows } = await supabase
+            .from('feature_events')
+            .select('id, event_type, created_at')
+            .in('event_type', ['love_fortune', 'compatibility'])
+            .order('created_at', { ascending: false })
+            .limit(100000);
+
+        const inRange = (rows, startStr, endStr) => {
+            return (rows || []).filter(r => {
+                const t = (r.created_at && r.created_at.endsWith('Z') ? r.created_at : new Date(r.created_at).toISOString());
+                return t >= startStr && t <= endStr;
+            });
+        };
+
+        const periodRows = inRange(allRows, start, end);
+
+        const dailyLoveFortune = {};
+        const dailyCompatibility = {};
+        periodRows.forEach(r => {
+            const date = getJSTDateString(new Date(r.created_at));
+            if (r.event_type === 'love_fortune') {
+                dailyLoveFortune[date] = (dailyLoveFortune[date] || 0) + 1;
+            } else if (r.event_type === 'compatibility') {
+                dailyCompatibility[date] = (dailyCompatibility[date] || 0) + 1;
+            }
+        });
+
+        const toArray = (obj) => Object.entries(obj)
+            .map(([date, count]) => ({ date, count }))
+            .sort((a, b) => a.date.localeCompare(b.date));
+
+        res.json({
+            dailyLoveFortune: toArray(dailyLoveFortune),
+            dailyCompatibility: toArray(dailyCompatibility)
+        });
+    } catch (error) {
+        console.error('Error getting features daily:', error);
+        res.status(500).json({ error: 'Failed to get features daily' });
     }
 });
 
@@ -792,6 +872,13 @@ app.get('/api/admin/analytics/conversion', adminAuth, async (req, res) => {
             .gte('created_at', start)
             .lte('created_at', end);
         
+        const { count: quizDirectViews } = await supabase
+            .from('page_views')
+            .select('*', { count: 'exact', head: true })
+            .eq('page', 'quiz_direct')
+            .gte('created_at', start)
+            .lte('created_at', end);
+        
         const { count: resultViews } = await supabase
             .from('page_views')
             .select('*', { count: 'exact', head: true })
@@ -805,6 +892,8 @@ app.get('/api/admin/analytics/conversion', adminAuth, async (req, res) => {
             .gte('created_at', start)
             .lte('created_at', end);
         
+        const totalEntries = (homeViews || 0) + (quizDirectViews || 0);
+        // クイズ開始数は quiz のPV（ホーム経由＋診断から開始リンク経由の両方で showPage('quiz') が叩かれるのでこれでよい）
         const funnel = [
             { stage: 'ホーム', count: homeViews || 0 },
             { stage: 'クイズ開始', count: quizViews || 0 },
@@ -816,19 +905,20 @@ app.get('/api/admin/analytics/conversion', adminAuth, async (req, res) => {
             ? Math.round((completed || 0) / homeViews * 100 * 10) / 10 
             : 0;
         
-        const quizStartRate = (homeViews || 0) > 0
-            ? Math.round((quizViews || 0) / homeViews * 100 * 10) / 10
+        const quizStartRate = totalEntries > 0
+            ? Math.round((quizViews || 0) / totalEntries * 100 * 10) / 10
             : 0;
             
         const quizCompleteRate = (quizViews || 0) > 0
-            ? Math.round((completed || 0) / quizViews * 100 * 10) / 10
+            ? Math.round((completed || 0) / (quizViews || 0) * 100 * 10) / 10
             : 0;
         
         res.json({
             funnel,
             conversionRate,
             quizStartRate,
-            quizCompleteRate
+            quizCompleteRate,
+            quizDirectViews: quizDirectViews || 0
         });
     } catch (error) {
         console.error('Error getting conversion analytics:', error);
@@ -902,8 +992,9 @@ app.get('/api/admin/analytics/dropout', adminAuth, async (req, res) => {
         
         // ページ単位での到達数を集計（5問ごと = 4ページ）
         // Q1=ページ1開始, Q6=ページ2開始, Q11=ページ3開始, Q16=ページ4開始, Q20=完了
-        const pageMilestones = [1, 6, 11, 16, 20];
-        const pageLabels = ['ページ1 (Q1-Q5)', 'ページ2 (Q6-Q10)', 'ページ3 (Q11-Q15)', 'ページ4 (Q16-Q20)', '診断完了'];
+        // メインサイトのページ割り 2→5→6→7 に合わせたマイルストーン（各ページ開始設問番号＋完了）
+        const pageMilestones = [1, 3, 8, 14, 20];
+        const pageLabels = ['ページ1 (Q1-Q2)', 'ページ2 (Q3-Q7)', 'ページ3 (Q8-Q13)', 'ページ4 (Q14-Q20)', '診断完了'];
         const pageCounts = {};
         let completedCount = 0;
         const totalSessions = Object.keys(sessions).length;

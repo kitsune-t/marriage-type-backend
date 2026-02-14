@@ -723,8 +723,8 @@
                 <span>〜</span>
                 <input type="date" id="endDate">
                 <div class="preset-btns">
-                    <button class="preset-btn active" data-days="7">7日間</button>
-                    <button class="preset-btn" data-days="30">30日間</button>
+                    <button class="preset-btn" data-days="7">7日間</button>
+                    <button class="preset-btn active" data-days="30">30日間</button>
                     <button class="preset-btn" data-days="90">90日間</button>
                     <button class="preset-btn" data-days="365">1年間</button>
                 </div>
@@ -735,7 +735,7 @@
             <div class="tab-content active" id="tab-overview">
                 <div class="stats-grid">
                     <div class="stat-card primary">
-                        <h3>📊 期間内アクセス</h3>
+                        <h3>📊 期間内アクセス（全PV）</h3>
                         <div class="value" id="periodViews">-</div>
                         <div class="sub-value">UU: <span id="periodUU">-</span> / 総PV: <span id="totalViews">-</span></div>
                     </div>
@@ -756,12 +756,12 @@
                     <div class="stat-card" style="--accent: #E91E63;">
                         <h3>💕 恋愛占い（期間）</h3>
                         <div class="value" id="periodLoveFortune">-</div>
-                        <div class="sub-value">総計: <span id="totalLoveFortune">-</span> / 今日: <span id="todayLoveFortune">-</span></div>
+                        <div class="sub-value">UU: <span id="periodLoveFortuneUU">-</span> / 総計: <span id="totalLoveFortune">-</span> / 今日: <span id="todayLoveFortune">-</span> (UU: <span id="todayLoveFortuneUU">-</span>)</div>
                     </div>
                     <div class="stat-card" style="--accent: #9C27B0;">
                         <h3>🤝 相性診断（期間）</h3>
                         <div class="value" id="periodCompatibility">-</div>
-                        <div class="sub-value">総計: <span id="totalCompatibility">-</span> / 今日: <span id="todayCompatibility">-</span></div>
+                        <div class="sub-value">UU: <span id="periodCompatibilityUU">-</span> / 総計: <span id="totalCompatibility">-</span> / 今日: <span id="todayCompatibility">-</span> (UU: <span id="todayCompatibilityUU">-</span>)</div>
                     </div>
                     <div class="stat-card" style="--accent: #009688;">
                         <h3>🔑 診断コード発行（期間）</h3>
@@ -774,6 +774,21 @@
                     <h2><span class="icon">📈</span> アクセス・診断推移</h2>
                     <div class="chart-container large">
                         <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="grid-2">
+                    <div class="card">
+                        <h2><span class="icon">💕</span> 恋愛占いグラフ</h2>
+                        <div class="chart-container">
+                            <canvas id="loveFortuneChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h2><span class="icon">🤝</span> 相性診断グラフ</h2>
+                        <div class="chart-container">
+                            <canvas id="compatibilityChart"></canvas>
+                        </div>
                     </div>
                 </div>
                 
@@ -856,7 +871,7 @@
                     <div class="stat-card primary">
                         <h3>🎯 診断開始率</h3>
                         <div class="value" id="quizStartRate">-</div>
-                        <div class="sub-value">ホーム → クイズ開始</div>
+                        <div class="sub-value">全エントリー → クイズ開始</div>
                     </div>
                     <div class="stat-card secondary">
                         <h3>✅ 診断完了率</h3>
@@ -872,6 +887,8 @@
                 
                 <div class="card">
                     <h2><span class="icon">🔽</span> コンバージョンファネル</h2>
+                    <p style="color: #666; margin-bottom: 16px; font-size: 0.9rem;">「ホーム」はトップページの表示数のみです。概要の「期間内アクセス」は<strong>全ページのPV合計</strong>（ホーム・クイズ・結果・相性診断・恋愛占いなど）なので、ホームより多くなります。「クイズ開始」はホーム経由＋<strong>診断から開始リンク</strong>経由の合計です。</p>
+                    <p style="color: #555; margin-bottom: 12px; font-size: 0.9rem;" id="quiz-direct-note"></p>
                     <div class="funnel" id="funnel">
                         <div class="loading">読み込み中...</div>
                     </div>
@@ -998,9 +1015,18 @@
                                 </select>
                             </div>
                             
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <input type="checkbox" id="start-quiz-checkbox" style="width: 18px; height: 18px;">
+                                <label for="start-quiz-checkbox" style="margin: 0; font-weight: 500; color: #555;">診断から開始（リンクを踏んだらすぐ診断1ページ目から。TOP離脱を防ぎます）</label>
+                            </div>
+                            
+                            <div id="edit-mode-hint" style="display: none; padding: 10px 14px; background: #fff8e7; border: 1px solid #f5a623; border-radius: 8px; font-size: 0.9rem; color: #333; margin-bottom: 8px;"></div>
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                             <button onclick="generateTrackingLink()" style="padding: 14px 24px; background: linear-gradient(135deg, #7EB8DA, #F5A5B8); color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer;">
                                 🔗 リンクを生成
                             </button>
+                            <button id="cancel-edit-btn" onclick="cancelEditLink()" style="display: none; padding: 14px 24px; background: #f0f0f0; color: #555; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; cursor: pointer;">キャンセル</button>
+                            </div>
                         </div>
                         
                         <div id="generated-link-area" style="display: none; margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px;">
@@ -1134,8 +1160,8 @@
                 btn.addEventListener('click', () => setPresetDays(parseInt(btn.dataset.days)));
             });
             
-            // 初期日付設定（デフォルト7日間）
-            setPresetDays(7);
+            // 初期日付設定（デフォルト30日間）
+            setPresetDays(30);
         });
         
         // ログイン
@@ -1288,8 +1314,9 @@
         // ==========================================
         
         const SITE_URL = 'https://marriage-type.com';
+        let editingLinkIndex = null; // 編集中の履歴インデックス（null=新規）
         
-        // トラッキングリンク生成
+        // トラッキングリンク生成（新規 or 編集の上書き保存）
         function generateTrackingLink() {
             const campaign = document.getElementById('utm-campaign').value.trim();
             const source = document.getElementById('utm-source').value;
@@ -1304,12 +1331,13 @@
                 return;
             }
             
-            // URLを生成
             const params = new URLSearchParams({
                 utm_source: source,
                 utm_medium: medium,
                 utm_campaign: campaign
             });
+            const startQuiz = document.getElementById('start-quiz-checkbox').checked;
+            if (startQuiz) params.set('start', 'quiz');
             
             const trackingUrl = `${SITE_URL}/?${params.toString()}`;
             
@@ -1317,30 +1345,66 @@
             document.getElementById('generated-link-area').style.display = 'block';
             document.getElementById('copy-success').style.display = 'none';
             
-            // 履歴に保存
-            saveLinkToHistory({
+            const linkData = {
                 campaign,
                 source,
                 medium,
                 url: trackingUrl,
+                startQuiz: startQuiz,
                 createdAt: new Date().toISOString()
-            });
+            };
+            
+            if (editingLinkIndex !== null) {
+                const history = JSON.parse(localStorage.getItem('trackingLinkHistory') || '[]');
+                if (history[editingLinkIndex] !== undefined) {
+                    history[editingLinkIndex] = linkData;
+                    localStorage.setItem('trackingLinkHistory', JSON.stringify(history));
+                }
+                editingLinkIndex = null;
+                document.getElementById('edit-mode-hint').style.display = 'none';
+                document.getElementById('cancel-edit-btn').style.display = 'none';
+            } else {
+                saveLinkToHistory(linkData);
+            }
             renderLinkHistory();
         }
         
         // 履歴をlocalStorageに保存
         function saveLinkToHistory(linkData) {
             const history = JSON.parse(localStorage.getItem('trackingLinkHistory') || '[]');
-            // 同じキャンペーン名があれば更新、なければ追加
             const existingIndex = history.findIndex(h => h.campaign === linkData.campaign);
             if (existingIndex >= 0) {
                 history[existingIndex] = linkData;
             } else {
-                history.unshift(linkData); // 新しいものを先頭に
+                history.unshift(linkData);
             }
-            // 最大20件まで保持
             if (history.length > 20) history.pop();
             localStorage.setItem('trackingLinkHistory', JSON.stringify(history));
+        }
+        
+        // 履歴のリンクを編集モードでフォームに反映
+        function editLinkHistory(index) {
+            const history = JSON.parse(localStorage.getItem('trackingLinkHistory') || '[]');
+            const item = history[index];
+            if (!item) return;
+            editingLinkIndex = index;
+            document.getElementById('utm-campaign').value = item.campaign || '';
+            document.getElementById('utm-source').value = item.source || '';
+            document.getElementById('utm-medium').value = item.medium || 'social';
+            document.getElementById('start-quiz-checkbox').checked = !!item.startQuiz;
+            document.getElementById('edit-mode-hint').style.display = 'block';
+            document.getElementById('edit-mode-hint').innerHTML = `編集中: <strong>${(item.campaign || '').replace(/</g, '&lt;')}</strong> — 「リンクを生成」で上書き保存します。`;
+            document.getElementById('cancel-edit-btn').style.display = 'inline-block';
+            document.getElementById('generated-link-area').style.display = 'none';
+            const formCard = document.querySelector('#tab-tracking .card');
+            if (formCard) formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
+        // 編集をキャンセル
+        function cancelEditLink() {
+            editingLinkIndex = null;
+            document.getElementById('edit-mode-hint').style.display = 'none';
+            document.getElementById('cancel-edit-btn').style.display = 'none';
         }
         
         // 履歴を表示
@@ -1353,24 +1417,42 @@
                 return;
             }
             
-            container.innerHTML = history.map(item => {
+            container.innerHTML = history.map((item, i) => {
                 const date = new Date(item.createdAt);
                 const dateStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2,'0')}`;
                 return `
-                    <div style="padding: 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <div style="font-weight: 600; color: #333; margin-bottom: 4px;">📌 ${item.campaign}</div>
-                            <div style="font-size: 0.8rem; color: #888;">${item.source} / ${item.medium} - ${dateStr}</div>
+                    <div style="padding: 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-weight: 600; color: #333; margin-bottom: 4px;">📌 ${(item.campaign || '').replace(/</g, '&lt;')}${item.startQuiz ? ' <span style="font-size: 0.7rem; background: #6BCB9E; color: white; padding: 2px 6px; border-radius: 4px;">診断から開始</span>' : ''}</div>
+                            <div style="font-size: 0.8rem; color: #888;">${(item.source || '')} / ${(item.medium || '')} - ${dateStr}</div>
                         </div>
-                        <button onclick="copyHistoryLink('${item.url}')" style="padding: 6px 12px; background: #7EB8DA; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">
-                            📋 コピー
-                        </button>
+                        <div style="display: flex; gap: 6px; flex-shrink: 0;">
+                            <button onclick="editLinkHistory(${i})" style="padding: 6px 12px; background: #f0f0f0; color: #555; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">編集</button>
+                            <button onclick="copyHistoryLinkByIndex(${i})" style="padding: 6px 12px; background: #7EB8DA; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">📋 コピー</button>
+                        </div>
                     </div>
                 `;
             }).join('');
         }
         
-        // 履歴からコピー
+        // 履歴からコピー（インデックス指定でURLのエスケープ問題を回避）
+        function copyHistoryLinkByIndex(index) {
+            const history = JSON.parse(localStorage.getItem('trackingLinkHistory') || '[]');
+            const url = history[index] && history[index].url;
+            if (!url) return;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(() => alert('コピーしました！'));
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = url;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                alert('コピーしました！');
+            }
+        }
+        
         function copyHistoryLink(url) {
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(url).then(() => {
@@ -1619,17 +1701,98 @@
                 });
                 if (!res.ok) return;
                 const data = await res.json();
-                const ids = ['periodLoveFortune','totalLoveFortune','todayLoveFortune','periodCompatibility','totalCompatibility','todayCompatibility','periodDiagnosisCode','totalDiagnosisCode','todayDiagnosisCode'];
+                const ids = ['periodLoveFortune','totalLoveFortune','todayLoveFortune','periodLoveFortuneUU','todayLoveFortuneUU','periodCompatibility','totalCompatibility','todayCompatibility','periodCompatibilityUU','todayCompatibilityUU','periodDiagnosisCode','totalDiagnosisCode','todayDiagnosisCode'];
                 const keys = [
                     data.loveFortune && data.loveFortune.period, data.loveFortune && data.loveFortune.total, data.loveFortune && data.loveFortune.today,
+                    data.loveFortune && data.loveFortune.periodUU, data.loveFortune && data.loveFortune.todayUU,
                     data.compatibility && data.compatibility.period, data.compatibility && data.compatibility.total, data.compatibility && data.compatibility.today,
+                    data.compatibility && data.compatibility.periodUU, data.compatibility && data.compatibility.todayUU,
                     data.diagnosisCode && data.diagnosisCode.period, data.diagnosisCode && data.diagnosisCode.total, data.diagnosisCode && data.diagnosisCode.today
                 ];
                 ids.forEach((id, i) => {
                     const el = document.getElementById(id);
                     if (el) el.textContent = (keys[i] != null ? keys[i] : 0).toLocaleString();
                 });
+                // 恋愛占い・相性診断の日別グラフ
+                const dailyRes = await fetch(`${API_BASE}/api/admin/analytics/features/daily?startDate=${startDate}&endDate=${endDate}`, {
+                    headers: { 'X-API-Key': apiKey }
+                });
+                if (dailyRes.ok) {
+                    const dailyData = await dailyRes.json();
+                    renderLoveFortuneChart(dailyData.dailyLoveFortune || []);
+                    renderCompatibilityChart(dailyData.dailyCompatibility || []);
+                }
             } catch (e) { console.error('loadFeaturesAnalytics', e); }
+        }
+        
+        function renderLoveFortuneChart(dailyLoveFortune) {
+            const ctx = document.getElementById('loveFortuneChart');
+            if (!ctx) return;
+            if (charts.loveFortune) charts.loveFortune.destroy();
+            const labels = (dailyLoveFortune || []).map(d => {
+                const date = new Date(d.date);
+                return `${date.getMonth() + 1}/${date.getDate()}`;
+            });
+            const data = (dailyLoveFortune || []).map(d => d.count);
+            if (labels.length === 0) {
+                labels.push('データなし');
+                data.push(0);
+            }
+            charts.loveFortune = new Chart(ctx.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '恋愛占い 実行数',
+                        data: data,
+                        borderColor: '#E91E63',
+                        backgroundColor: 'rgba(233, 30, 99, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+        
+        function renderCompatibilityChart(dailyCompatibility) {
+            const ctx = document.getElementById('compatibilityChart');
+            if (!ctx) return;
+            if (charts.compatibility) charts.compatibility.destroy();
+            const labels = (dailyCompatibility || []).map(d => {
+                const date = new Date(d.date);
+                return `${date.getMonth() + 1}/${date.getDate()}`;
+            });
+            const data = (dailyCompatibility || []).map(d => d.count);
+            if (labels.length === 0) {
+                labels.push('データなし');
+                data.push(0);
+            }
+            charts.compatibility = new Chart(ctx.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '相性診断 実行数',
+                        data: data,
+                        borderColor: '#9C27B0',
+                        backgroundColor: 'rgba(156, 39, 176, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
         }
         
         let lastDiagnosisCodesList = [];
@@ -1752,6 +1915,12 @@
                 document.getElementById('quizStartRate').textContent = data.quizStartRate + '%';
                 document.getElementById('quizCompleteRate').textContent = data.quizCompleteRate + '%';
                 document.getElementById('conversionRate').textContent = data.conversionRate + '%';
+                
+                const noteEl = document.getElementById('quiz-direct-note');
+                if (noteEl && (data.quizDirectViews || 0) > 0) {
+                    noteEl.textContent = `📌 診断から開始リンク経由: ${data.quizDirectViews.toLocaleString()}件（TOPをスキップして診断1ページ目から開始）`;
+                    noteEl.style.display = 'block';
+                } else if (noteEl) noteEl.style.display = 'none';
                 
                 renderFunnel(data.funnel);
                 renderConversionTrendChart(startDate, endDate);
@@ -2154,6 +2323,7 @@
             const pageNames = {
                 'home': '🏠 ホーム',
                 'quiz': '📝 診断',
+                'quiz_direct': '📝 診断（から開始リンク）',
                 'result': '🎯 結果',
                 'theory': '📖 診断とは',
                 'characters': '👥 タイプ一覧',
