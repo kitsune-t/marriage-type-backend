@@ -1023,7 +1023,7 @@
                             
                             <div id="edit-mode-hint" style="display: none; padding: 10px 14px; background: #fff8e7; border: 1px solid #f5a623; border-radius: 8px; font-size: 0.9rem; color: #333; margin-bottom: 8px;"></div>
                             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                            <button onclick="generateTrackingLink()" style="padding: 14px 24px; background: linear-gradient(135deg, #7EB8DA, #F5A5B8); color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer;">
+                            <button id="generate-tracking-link-btn" onclick="generateTrackingLink()" style="padding: 14px 24px; background: linear-gradient(135deg, #7EB8DA, #F5A5B8); color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer;">
                                 🔗 リンクを生成
                             </button>
                             <button id="cancel-edit-btn" onclick="cancelEditLink()" style="display: none; padding: 14px 24px; background: #f0f0f0; color: #555; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; cursor: pointer;">キャンセル</button>
@@ -1317,11 +1317,12 @@
         const SITE_URL = 'https://marriage-type.com';
         let editingLinkIndex = null; // 編集中の履歴インデックス（null=新規）
         
-        // トラッキングリンク生成（新規 or 編集の上書き保存）
+        // トラッキングリンク生成（新規） or 更新（編集時はリンクURLは変えず表示用のみ更新）
         function generateTrackingLink() {
             const campaign = document.getElementById('utm-campaign').value.trim();
             const source = document.getElementById('utm-source').value;
             const medium = document.getElementById('utm-medium').value;
+            const startQuiz = document.getElementById('start-quiz-checkbox').checked;
             
             if (!campaign) {
                 alert('キャンペーン名を入力してください');
@@ -1332,39 +1333,46 @@
                 return;
             }
             
-            const params = new URLSearchParams({
-                utm_source: source,
-                utm_medium: medium,
-                utm_campaign: campaign
-            });
-            const startQuiz = document.getElementById('start-quiz-checkbox').checked;
-            if (startQuiz) params.set('start', 'quiz');
-            
-            const trackingUrl = `${SITE_URL}/?${params.toString()}`;
-            
-            document.getElementById('generated-link').value = trackingUrl;
-            document.getElementById('generated-link-area').style.display = 'block';
-            document.getElementById('copy-success').style.display = 'none';
-            
-            const linkData = {
-                campaign,
-                source,
-                medium,
-                url: trackingUrl,
-                startQuiz: startQuiz,
-                createdAt: new Date().toISOString()
-            };
-            
             if (editingLinkIndex !== null) {
+                // 編集時: リンクURLは変えず、キャンペーン名・流入元・診断から開始フラグのみ更新
                 const history = JSON.parse(localStorage.getItem('trackingLinkHistory') || '[]');
-                if (history[editingLinkIndex] !== undefined) {
+                const existing = history[editingLinkIndex];
+                if (existing) {
+                    const linkData = {
+                        ...existing,
+                        campaign,
+                        source,
+                        medium,
+                        startQuiz,
+                        updatedAt: new Date().toISOString()
+                    };
                     history[editingLinkIndex] = linkData;
                     localStorage.setItem('trackingLinkHistory', JSON.stringify(history));
                 }
                 editingLinkIndex = null;
                 document.getElementById('edit-mode-hint').style.display = 'none';
                 document.getElementById('cancel-edit-btn').style.display = 'none';
+                document.getElementById('generate-tracking-link-btn').textContent = '🔗 リンクを生成';
+                document.getElementById('generated-link-area').style.display = 'none';
             } else {
+                const params = new URLSearchParams({
+                    utm_source: source,
+                    utm_medium: medium,
+                    utm_campaign: campaign
+                });
+                if (startQuiz) params.set('start', 'quiz');
+                const trackingUrl = `${SITE_URL}/?${params.toString()}`;
+                document.getElementById('generated-link').value = trackingUrl;
+                document.getElementById('generated-link-area').style.display = 'block';
+                document.getElementById('copy-success').style.display = 'none';
+                const linkData = {
+                    campaign,
+                    source,
+                    medium,
+                    url: trackingUrl,
+                    startQuiz,
+                    createdAt: new Date().toISOString()
+                };
                 saveLinkToHistory(linkData);
             }
             renderLinkHistory();
@@ -1394,8 +1402,9 @@
             document.getElementById('utm-medium').value = item.medium || 'social';
             document.getElementById('start-quiz-checkbox').checked = !!item.startQuiz;
             document.getElementById('edit-mode-hint').style.display = 'block';
-            document.getElementById('edit-mode-hint').innerHTML = `編集中: <strong>${(item.campaign || '').replace(/</g, '&lt;')}</strong> — 「リンクを生成」で上書き保存します。`;
+            document.getElementById('edit-mode-hint').innerHTML = `編集中: <strong>${(item.campaign || '').replace(/</g, '&lt;')}</strong> — 「更新」で保存します。リンクURLは変わりません。`;
             document.getElementById('cancel-edit-btn').style.display = 'inline-block';
+            document.getElementById('generate-tracking-link-btn').textContent = '更新';
             document.getElementById('generated-link-area').style.display = 'none';
             const formCard = document.querySelector('#tab-tracking .card');
             if (formCard) formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1406,6 +1415,7 @@
             editingLinkIndex = null;
             document.getElementById('edit-mode-hint').style.display = 'none';
             document.getElementById('cancel-edit-btn').style.display = 'none';
+            document.getElementById('generate-tracking-link-btn').textContent = '🔗 リンクを生成';
         }
         
         // 履歴を表示
