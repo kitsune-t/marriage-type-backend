@@ -1334,15 +1334,24 @@
             }
             
             if (editingLinkIndex !== null) {
-                // 編集時: リンクURLは変えず、キャンペーン名・流入元・診断から開始フラグのみ更新
+                // 編集時: キャンペーン名・流入元・診断から開始は更新。URLは「診断から開始」の有無だけ反映（クリック時に診断から始まるようにする）
                 const history = JSON.parse(localStorage.getItem('trackingLinkHistory') || '[]');
                 const existing = history[editingLinkIndex];
                 if (existing) {
+                    let newUrl = (existing.url || '').split('?')[0];
+                    const search = (existing.url || '').includes('?') ? (existing.url || '').split('?')[1] || '' : '';
+                    const params = new URLSearchParams(search);
+                    params.set('utm_source', source);
+                    params.set('utm_medium', medium);
+                    params.set('utm_campaign', campaign);
+                    if (startQuiz) params.set('start', 'quiz'); else params.delete('start');
+                    newUrl = newUrl + '?' + params.toString();
                     const linkData = {
                         ...existing,
                         campaign,
                         source,
                         medium,
+                        url: newUrl,
                         startQuiz,
                         updatedAt: new Date().toISOString()
                     };
@@ -1402,7 +1411,7 @@
             document.getElementById('utm-medium').value = item.medium || 'social';
             document.getElementById('start-quiz-checkbox').checked = !!item.startQuiz;
             document.getElementById('edit-mode-hint').style.display = 'block';
-            document.getElementById('edit-mode-hint').innerHTML = `編集中: <strong>${(item.campaign || '').replace(/</g, '&lt;')}</strong> — 「更新」で保存します。リンクURLは変わりません。`;
+            document.getElementById('edit-mode-hint').innerHTML = `編集中: <strong>${(item.campaign || '').replace(/</g, '&lt;')}</strong> — 「更新」で保存。診断から開始のチェックを変えるとURLも更新されます。`;
             document.getElementById('cancel-edit-btn').style.display = 'inline-block';
             document.getElementById('generate-tracking-link-btn').textContent = '更新';
             document.getElementById('generated-link-area').style.display = 'none';
