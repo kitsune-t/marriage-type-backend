@@ -1210,12 +1210,7 @@
             loadAllData();
             renderLinkHistory(); // 発行履歴を表示
             
-            // 自動更新: 30秒ごとにデータを更新
-            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
-            autoRefreshInterval = setInterval(() => {
-                loadAllData();
-                console.log('🔄 自動更新:', new Date().toLocaleTimeString());
-            }, 30000); // 30秒 = 30000ミリ秒
+            // 自動更新は行わない（手動で「🔄 更新」ボタンから更新）
         }
         
         // タブ切り替え
