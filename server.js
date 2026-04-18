@@ -57,6 +57,26 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString(), database: 'supabase' });
 });
 
+// ==========================================
+// マルチサイト共通ヘルパー
+// ==========================================
+
+// site の正規化（marriage_type16 | minako）
+function normalizeSite(raw) {
+    const v = (raw || '').toString().trim().toLowerCase();
+    if (v === 'minako' || v === 'minako_marriage_type' || v === 'minako.marriage.type') return 'minako';
+    return 'marriage_type16';
+}
+
+// site filter を Supabase クエリに乗せる
+//   - site=marriage_type16 → IS NULL もまとめて取る（既存データ互換）
+//   - site=minako          → 'minako' のみ
+function applySiteFilter(query, site) {
+    if (site === 'minako') return query.eq('site', 'minako');
+    // marriage_type16: 既存の NULL も含めて取得
+    return query.or('site.is.null,site.eq.marriage_type16');
+}
+
 // デバッグ用API
 app.get('/api/debug/daily', async (req, res) => {
     try {
@@ -96,26 +116,29 @@ app.get('/api/debug/daily', async (req, res) => {
 // API: データ記録
 // ==========================================
 
-// ページビュー記録（UTMパラメータ対応）
+// ページビュー記録（UTMパラメータ対応・マルチサイト対応）
 app.post('/api/track/pageview', async (req, res) => {
     try {
-        const { page, utm_source, utm_medium, utm_campaign } = req.body;
+        const { page, utm_source, utm_medium, utm_campaign, affiliate_id } = req.body;
+        const site = normalizeSite(req.body.site);
         const userAgent = req.headers['user-agent'] || '';
         const referrer = req.headers['referer'] || '';
         const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
-        
+
         const { error } = await supabase
             .from('page_views')
-            .insert({ 
-                page, 
-                user_agent: userAgent, 
-                referrer, 
+            .insert({
+                page,
+                user_agent: userAgent,
+                referrer,
                 ip,
+                site,
+                affiliate_id: affiliate_id || null,
                 utm_source: utm_source || null,
                 utm_medium: utm_medium || null,
                 utm_campaign: utm_campaign || null
             });
-        
+
         if (error) throw error;
         res.json({ success: true });
     } catch (error) {
@@ -124,27 +147,30 @@ app.post('/api/track/pageview', async (req, res) => {
     }
 });
 
-// クイズ進捗記録（離脱ポイント分析用）
+// クイズ進捗記録（離脱ポイント分析用・マルチサイト対応）
 app.post('/api/track/quiz-progress', async (req, res) => {
     try {
-        const { session_id, question_number, action } = req.body;
+        const { session_id, question_number, action, affiliate_id } = req.body;
+        const site = normalizeSite(req.body.site);
         const userAgent = req.headers['user-agent'] || '';
-        
+
         // UTMパラメータも一緒に記録
         const { utm_source, utm_medium, utm_campaign } = req.body;
-        
+
         const { error } = await supabase
             .from('quiz_progress')
-            .insert({ 
+            .insert({
                 session_id,
                 question_number,
                 action, // 'start', 'answer', 'complete'
                 user_agent: userAgent,
+                site,
+                affiliate_id: affiliate_id || null,
                 utm_source: utm_source || null,
                 utm_medium: utm_medium || null,
                 utm_campaign: utm_campaign || null
             });
-        
+
         if (error) throw error;
         res.json({ success: true });
     } catch (error) {
@@ -153,26 +179,55 @@ app.post('/api/track/quiz-progress', async (req, res) => {
     }
 });
 
-// 診断結果記録
+// 診断結果記録（マルチサイト対応）
 app.post('/api/track/diagnosis', async (req, res) => {
     try {
-        const { typeCode, typeName, scores } = req.body;
+        const { typeCode, typeName, scores, affiliate_id } = req.body;
+        const site = normalizeSite(req.body.site);
         const userAgent = req.headers['user-agent'] || '';
-        
+
         const { error } = await supabase
             .from('diagnosis_results')
-            .insert({ 
-                type_code: typeCode, 
-                type_name: typeName, 
-                scores: JSON.stringify(scores), 
-                user_agent: userAgent 
+            .insert({
+                type_code: typeCode,
+                type_name: typeName,
+                scores: JSON.stringify(scores),
+                user_agent: userAgent,
+                site,
+                affiliate_id: affiliate_id || null
             });
-        
+
         if (error) throw error;
         res.json({ success: true });
     } catch (error) {
         console.error('Error tracking diagnosis:', error);
         res.status(500).json({ error: 'Failed to track diagnosis' });
+    }
+});
+
+// minako診断: LINE CTA クリック記録（アフィリエイター別の成果測定用）
+app.post('/api/track/minako-line-click', async (req, res) => {
+    try {
+        const { tier, typeCode, affiliate_id } = req.body;
+        const ip = getClientIp(req);
+        const { error } = await supabase
+            .from('feature_events')
+            .insert({
+                event_type: 'minako_line_click',
+                site: 'minako',
+                affiliate_id: affiliate_id || null,
+                payload: {
+                    tier: tier || null,
+                    type_code: typeCode || null,
+                    affiliate_id: affiliate_id || null
+                },
+                ip: ip || null
+            });
+        if (error) throw error;
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error tracking minako-line-click:', error);
+        res.status(500).json({ error: 'Failed to track minako-line-click' });
     }
 });
 
@@ -263,55 +318,63 @@ const adminAuth = (req, res, next) => {
 // ダッシュボード概要
 app.get('/api/admin/dashboard', adminAuth, async (req, res) => {
     try {
+        const site = normalizeSite(req.query.site);
         // 日本時間で「今日」を取得
         const today = getJSTDateString();
         // 日本時間の00:00:00はUTCの前日15:00:00
         const todayStart = today + 'T00:00:00+09:00';
         const todayEnd = today + 'T23:59:59+09:00';
-        
+
         // 総アクセス数（PV）
-        const { count: totalViews } = await supabase
-            .from('page_views')
-            .select('*', { count: 'exact', head: true });
-        
+        const { count: totalViews } = await applySiteFilter(
+            supabase.from('page_views').select('*', { count: 'exact', head: true }),
+            site
+        );
+
         // 総UU数（ユニークIP）
-        const { data: allIpData } = await supabase
-            .from('page_views')
-            .select('ip');
+        const { data: allIpData } = await applySiteFilter(
+            supabase.from('page_views').select('ip'),
+            site
+        );
         const totalUU = new Set((allIpData || []).map(d => d.ip).filter(ip => ip)).size;
-        
+
         // 今日のアクセス数（PV）
-        const { count: todayViews } = await supabase
-            .from('page_views')
-            .select('*', { count: 'exact', head: true })
-            .gte('created_at', todayStart)
-            .lte('created_at', todayEnd);
-        
+        const { count: todayViews } = await applySiteFilter(
+            supabase.from('page_views').select('*', { count: 'exact', head: true })
+                .gte('created_at', todayStart)
+                .lte('created_at', todayEnd),
+            site
+        );
+
         // 今日のUU数
-        const { data: todayIpData } = await supabase
-            .from('page_views')
-            .select('ip')
-            .gte('created_at', todayStart)
-            .lte('created_at', todayEnd);
+        const { data: todayIpData } = await applySiteFilter(
+            supabase.from('page_views').select('ip')
+                .gte('created_at', todayStart)
+                .lte('created_at', todayEnd),
+            site
+        );
         const todayUU = new Set((todayIpData || []).map(d => d.ip).filter(ip => ip)).size;
-        
+
         // 総診断数
-        const { count: totalDiagnosis } = await supabase
-            .from('diagnosis_results')
-            .select('*', { count: 'exact', head: true });
-        
+        const { count: totalDiagnosis } = await applySiteFilter(
+            supabase.from('diagnosis_results').select('*', { count: 'exact', head: true }),
+            site
+        );
+
         // 今日の診断数
-        const { count: todayDiagnosis } = await supabase
-            .from('diagnosis_results')
-            .select('*', { count: 'exact', head: true })
-            .gte('created_at', todayStart)
-            .lte('created_at', todayEnd);
-        
+        const { count: todayDiagnosis } = await applySiteFilter(
+            supabase.from('diagnosis_results').select('*', { count: 'exact', head: true })
+                .gte('created_at', todayStart)
+                .lte('created_at', todayEnd),
+            site
+        );
+
         // タイプ別診断数
-        const { data: diagnosisData } = await supabase
-            .from('diagnosis_results')
-            .select('type_code, type_name');
-        
+        const { data: diagnosisData } = await applySiteFilter(
+            supabase.from('diagnosis_results').select('type_code, type_name'),
+            site
+        );
+
         const typeStats = {};
         (diagnosisData || []).forEach(d => {
             if (!typeStats[d.type_code]) {
@@ -320,38 +383,38 @@ app.get('/api/admin/dashboard', adminAuth, async (req, res) => {
             typeStats[d.type_code].count++;
         });
         const typeStatsArray = Object.values(typeStats).sort((a, b) => b.count - a.count);
-        
+
         // 過去7日間のアクセス推移（日本時間基準）
         const sevenDaysAgoDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
         const sevenDaysAgo = getJSTDateString(sevenDaysAgoDate) + 'T00:00:00+09:00';
-        const { data: viewsData } = await supabase
-            .from('page_views')
-            .select('created_at')
-            .gte('created_at', sevenDaysAgo)
-            .order('created_at', { ascending: false })
-            .limit(10000);
-        
+        const { data: viewsData } = await applySiteFilter(
+            supabase.from('page_views').select('created_at')
+                .gte('created_at', sevenDaysAgo)
+                .order('created_at', { ascending: false })
+                .limit(10000),
+            site
+        );
+
         const dailyViews = {};
         (viewsData || []).forEach(v => {
-            // 日本時間で日付を取得
             const date = getJSTDateString(new Date(v.created_at));
             dailyViews[date] = (dailyViews[date] || 0) + 1;
         });
         const dailyViewsArray = Object.entries(dailyViews)
             .map(([date, count]) => ({ date, count }))
             .sort((a, b) => a.date.localeCompare(b.date));
-        
-        // 過去7日間の診断数推移（同じ日本時間基準）
-        const { data: diagData } = await supabase
-            .from('diagnosis_results')
-            .select('created_at')
-            .gte('created_at', sevenDaysAgo)
-            .order('created_at', { ascending: false })
-            .limit(10000);
-        
+
+        // 過去7日間の診断数推移
+        const { data: diagData } = await applySiteFilter(
+            supabase.from('diagnosis_results').select('created_at')
+                .gte('created_at', sevenDaysAgo)
+                .order('created_at', { ascending: false })
+                .limit(10000),
+            site
+        );
+
         const dailyDiagnosis = {};
         (diagData || []).forEach(d => {
-            // 日本時間で日付を取得
             const date = getJSTDateString(new Date(d.created_at));
             dailyDiagnosis[date] = (dailyDiagnosis[date] || 0) + 1;
         });
@@ -380,13 +443,16 @@ app.get('/api/admin/dashboard', adminAuth, async (req, res) => {
 app.get('/api/admin/diagnosis/recent', adminAuth, async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 50;
-        
-        const { data, error } = await supabase
-            .from('diagnosis_results')
-            .select('id, type_code, type_name, created_at')
-            .order('created_at', { ascending: false })
-            .limit(limit);
-        
+        const site = normalizeSite(req.query.site);
+
+        const { data, error } = await applySiteFilter(
+            supabase.from('diagnosis_results')
+                .select('id, type_code, type_name, affiliate_id, created_at')
+                .order('created_at', { ascending: false })
+                .limit(limit),
+            site
+        );
+
         if (error) throw error;
         res.json(data || []);
     } catch (error) {
@@ -399,6 +465,7 @@ app.get('/api/admin/diagnosis/recent', adminAuth, async (req, res) => {
 app.get('/api/admin/analytics/features', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
+        const site = normalizeSite(req.query.site);
         const start = (startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + 'T00:00:00.000Z';
         const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59.999Z';
 
@@ -408,11 +475,13 @@ app.get('/api/admin/analytics/features', adminAuth, async (req, res) => {
         const todayStart = todayStartJST.toISOString();
         const todayEnd = todayEndJST.toISOString();
 
-        const { data: allRows } = await supabase
-            .from('feature_events')
-            .select('id, event_type, payload, created_at, ip')
-            .order('created_at', { ascending: false })
-            .limit(100000);
+        const { data: allRows } = await applySiteFilter(
+            supabase.from('feature_events')
+                .select('id, event_type, payload, created_at, ip')
+                .order('created_at', { ascending: false })
+                .limit(100000),
+            site
+        );
 
         const inRange = (rows, startStr, endStr) => {
             return (rows || []).filter(r => {
@@ -474,15 +543,18 @@ app.get('/api/admin/analytics/features', adminAuth, async (req, res) => {
 app.get('/api/admin/analytics/features/daily', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
+        const site = normalizeSite(req.query.site);
         const start = (startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + 'T00:00:00.000Z';
         const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59.999Z';
 
-        const { data: allRows } = await supabase
-            .from('feature_events')
-            .select('id, event_type, created_at')
-            .in('event_type', ['love_fortune', 'compatibility'])
-            .order('created_at', { ascending: false })
-            .limit(100000);
+        const { data: allRows } = await applySiteFilter(
+            supabase.from('feature_events')
+                .select('id, event_type, created_at')
+                .in('event_type', ['love_fortune', 'compatibility'])
+                .order('created_at', { ascending: false })
+                .limit(100000),
+            site
+        );
 
         const inRange = (rows, startStr, endStr) => {
             return (rows || []).filter(r => {
@@ -522,18 +594,21 @@ app.get('/api/admin/analytics/features/daily', adminAuth, async (req, res) => {
 app.get('/api/admin/diagnosis-codes', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate, limit } = req.query;
+        const site = normalizeSite(req.query.site);
         const limitNum = Math.min(parseInt(limit) || 100, 500);
         const start = (startDate || '2020-01-01') + 'T00:00:00';
         const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
 
-        const { data, error } = await supabase
-            .from('feature_events')
-            .select('id, event_type, payload, created_at')
-            .eq('event_type', 'diagnosis_code')
-            .gte('created_at', start)
-            .lte('created_at', end)
-            .order('created_at', { ascending: false })
-            .limit(limitNum);
+        const { data, error } = await applySiteFilter(
+            supabase.from('feature_events')
+                .select('id, event_type, payload, created_at')
+                .eq('event_type', 'diagnosis_code')
+                .gte('created_at', start)
+                .lte('created_at', end)
+                .order('created_at', { ascending: false })
+                .limit(limitNum),
+            site
+        );
 
         if (error) throw error;
 
@@ -559,50 +634,56 @@ app.get('/api/admin/diagnosis-codes', adminAuth, async (req, res) => {
 app.get('/api/admin/analytics', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
+        const site = normalizeSite(req.query.site);
         const start = (startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + 'T00:00:00';
         const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
-        
+
         // 期間内のアクセス数（PV）
-        const { count: periodViews } = await supabase
-            .from('page_views')
-            .select('*', { count: 'exact', head: true })
-            .gte('created_at', start)
-            .lte('created_at', end);
-        
-        // 期間内のUU数（全件取得のため明示的にlimit。Supabaseデフォルト1000で打ち切られないように）
-        const { data: periodIpData } = await supabase
-            .from('page_views')
-            .select('ip')
-            .gte('created_at', start)
-            .lte('created_at', end)
-            .limit(100000);
+        const { count: periodViews } = await applySiteFilter(
+            supabase.from('page_views').select('*', { count: 'exact', head: true })
+                .gte('created_at', start)
+                .lte('created_at', end),
+            site
+        );
+
+        // 期間内のUU数
+        const { data: periodIpData } = await applySiteFilter(
+            supabase.from('page_views').select('ip')
+                .gte('created_at', start)
+                .lte('created_at', end)
+                .limit(100000),
+            site
+        );
         const periodUU = new Set((periodIpData || []).map(d => d.ip).filter(ip => ip)).size;
 
-        // ホームを1回以上表示したUU（95%ホーム経由の検証用）
-        const { data: homeIpData } = await supabase
-            .from('page_views')
-            .select('ip')
-            .eq('page', 'home')
-            .gte('created_at', start)
-            .lte('created_at', end)
-            .limit(100000);
+        // ホームを1回以上表示したUU
+        const { data: homeIpData } = await applySiteFilter(
+            supabase.from('page_views').select('ip')
+                .eq('page', 'home')
+                .gte('created_at', start)
+                .lte('created_at', end)
+                .limit(100000),
+            site
+        );
         const homeViewedUU = new Set((homeIpData || []).map(d => d.ip).filter(ip => ip)).size;
-        
+
         // 期間内の診断数
-        const { count: periodDiagnosis } = await supabase
-            .from('diagnosis_results')
-            .select('*', { count: 'exact', head: true })
-            .gte('created_at', start)
-            .lte('created_at', end);
-        
+        const { count: periodDiagnosis } = await applySiteFilter(
+            supabase.from('diagnosis_results').select('*', { count: 'exact', head: true })
+                .gte('created_at', start)
+                .lte('created_at', end),
+            site
+        );
+
         // 日別アクセス推移（PVとUU両方）
-        const { data: viewsData } = await supabase
-            .from('page_views')
-            .select('created_at, ip')
-            .gte('created_at', start)
-            .lte('created_at', end)
-            .order('created_at', { ascending: false })
-            .limit(50000);
+        const { data: viewsData } = await applySiteFilter(
+            supabase.from('page_views').select('created_at, ip')
+                .gte('created_at', start)
+                .lte('created_at', end)
+                .order('created_at', { ascending: false })
+                .limit(50000),
+            site
+        );
         
         const dailyViews = {};
         const dailyUU = {};  // 日別UU用
@@ -623,13 +704,14 @@ app.get('/api/admin/analytics', adminAuth, async (req, res) => {
             .sort((a, b) => a.date.localeCompare(b.date));
         
         // 日別診断推移
-        const { data: diagData } = await supabase
-            .from('diagnosis_results')
-            .select('created_at, type_code, type_name')
-            .gte('created_at', start)
-            .lte('created_at', end)
-            .order('created_at', { ascending: false })
-            .limit(50000);
+        const { data: diagData } = await applySiteFilter(
+            supabase.from('diagnosis_results').select('created_at, type_code, type_name')
+                .gte('created_at', start)
+                .lte('created_at', end)
+                .order('created_at', { ascending: false })
+                .limit(50000),
+            site
+        );
         
         const dailyDiagnosis = {};
         const typeStats = {};
@@ -669,20 +751,23 @@ app.get('/api/admin/analytics', adminAuth, async (req, res) => {
 app.get('/api/admin/analytics/hourly', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
+        const site = normalizeSite(req.query.site);
         const start = (startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + 'T00:00:00';
         const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
-        
-        const { data: viewsData } = await supabase
-            .from('page_views')
-            .select('created_at')
-            .gte('created_at', start)
-            .lte('created_at', end);
-        
-        const { data: diagData } = await supabase
-            .from('diagnosis_results')
-            .select('created_at')
-            .gte('created_at', start)
-            .lte('created_at', end);
+
+        const { data: viewsData } = await applySiteFilter(
+            supabase.from('page_views').select('created_at')
+                .gte('created_at', start)
+                .lte('created_at', end),
+            site
+        );
+
+        const { data: diagData } = await applySiteFilter(
+            supabase.from('diagnosis_results').select('created_at')
+                .gte('created_at', start)
+                .lte('created_at', end),
+            site
+        );
         
         const hourlyViews = {};
         const hourlyDiagnosis = {};
@@ -712,20 +797,23 @@ app.get('/api/admin/analytics/hourly', adminAuth, async (req, res) => {
 app.get('/api/admin/analytics/weekday', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
+        const site = normalizeSite(req.query.site);
         const start = (startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + 'T00:00:00';
         const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
-        
-        const { data: viewsData } = await supabase
-            .from('page_views')
-            .select('created_at')
-            .gte('created_at', start)
-            .lte('created_at', end);
-        
-        const { data: diagData } = await supabase
-            .from('diagnosis_results')
-            .select('created_at')
-            .gte('created_at', start)
-            .lte('created_at', end);
+
+        const { data: viewsData } = await applySiteFilter(
+            supabase.from('page_views').select('created_at')
+                .gte('created_at', start)
+                .lte('created_at', end),
+            site
+        );
+
+        const { data: diagData } = await applySiteFilter(
+            supabase.from('diagnosis_results').select('created_at')
+                .gte('created_at', start)
+                .lte('created_at', end),
+            site
+        );
         
         const weekdayViews = {};
         const weekdayDiagnosis = {};
@@ -755,14 +843,16 @@ app.get('/api/admin/analytics/weekday', adminAuth, async (req, res) => {
 app.get('/api/admin/analytics/devices', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
+        const site = normalizeSite(req.query.site);
         const start = (startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + 'T00:00:00';
         const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
-        
-        const { data } = await supabase
-            .from('page_views')
-            .select('user_agent')
-            .gte('created_at', start)
-            .lte('created_at', end);
+
+        const { data } = await applySiteFilter(
+            supabase.from('page_views').select('user_agent')
+                .gte('created_at', start)
+                .lte('created_at', end),
+            site
+        );
         
         const devices = { mobile: 0, tablet: 0, desktop: 0 };
         
@@ -797,14 +887,16 @@ app.get('/api/admin/analytics/devices', adminAuth, async (req, res) => {
 app.get('/api/admin/analytics/referrers', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
+        const site = normalizeSite(req.query.site);
         const start = (startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + 'T00:00:00';
         const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
-        
-        const { data } = await supabase
-            .from('page_views')
-            .select('referrer')
-            .gte('created_at', start)
-            .lte('created_at', end);
+
+        const { data } = await applySiteFilter(
+            supabase.from('page_views').select('referrer')
+                .gte('created_at', start)
+                .lte('created_at', end),
+            site
+        );
         
         const referrerCounts = { 'direct': 0 };
         
@@ -838,14 +930,16 @@ app.get('/api/admin/analytics/referrers', adminAuth, async (req, res) => {
 app.get('/api/admin/analytics/pages', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
+        const site = normalizeSite(req.query.site);
         const start = (startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + 'T00:00:00';
         const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
-        
-        const { data } = await supabase
-            .from('page_views')
-            .select('page')
-            .gte('created_at', start)
-            .lte('created_at', end);
+
+        const { data } = await applySiteFilter(
+            supabase.from('page_views').select('page')
+                .gte('created_at', start)
+                .lte('created_at', end),
+            site
+        );
         
         const pageCounts = {};
         (data || []).forEach(row => {
@@ -867,69 +961,101 @@ app.get('/api/admin/analytics/pages', adminAuth, async (req, res) => {
 app.get('/api/admin/analytics/conversion', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
+        const site = normalizeSite(req.query.site);
         const start = (startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + 'T00:00:00';
         const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
-        
-        const { count: homeViews } = await supabase
-            .from('page_views')
-            .select('*', { count: 'exact', head: true })
-            .eq('page', 'home')
-            .gte('created_at', start)
-            .lte('created_at', end);
-        
-        const { count: quizViews } = await supabase
-            .from('page_views')
-            .select('*', { count: 'exact', head: true })
-            .eq('page', 'quiz')
-            .gte('created_at', start)
-            .lte('created_at', end);
-        
-        const { count: quizDirectViews } = await supabase
-            .from('page_views')
-            .select('*', { count: 'exact', head: true })
-            .eq('page', 'quiz_direct')
-            .gte('created_at', start)
-            .lte('created_at', end);
-        
-        const { count: resultViews } = await supabase
-            .from('page_views')
-            .select('*', { count: 'exact', head: true })
-            .eq('page', 'result')
-            .gte('created_at', start)
-            .lte('created_at', end);
-        
-        const { count: completed } = await supabase
-            .from('diagnosis_results')
-            .select('*', { count: 'exact', head: true })
-            .gte('created_at', start)
-            .lte('created_at', end);
-        
+
+        const { count: homeViews } = await applySiteFilter(
+            supabase.from('page_views').select('*', { count: 'exact', head: true })
+                .eq('page', 'home')
+                .gte('created_at', start)
+                .lte('created_at', end),
+            site
+        );
+
+        const { count: quizViews } = await applySiteFilter(
+            supabase.from('page_views').select('*', { count: 'exact', head: true })
+                .eq('page', 'quiz')
+                .gte('created_at', start)
+                .lte('created_at', end),
+            site
+        );
+
+        const { count: quizDirectViews } = await applySiteFilter(
+            supabase.from('page_views').select('*', { count: 'exact', head: true })
+                .eq('page', 'quiz_direct')
+                .gte('created_at', start)
+                .lte('created_at', end),
+            site
+        );
+
+        const { count: resultViews } = await applySiteFilter(
+            supabase.from('page_views').select('*', { count: 'exact', head: true })
+                .eq('page', 'result')
+                .gte('created_at', start)
+                .lte('created_at', end),
+            site
+        );
+
+        const { count: completed } = await applySiteFilter(
+            supabase.from('diagnosis_results').select('*', { count: 'exact', head: true })
+                .gte('created_at', start)
+                .lte('created_at', end),
+            site
+        );
+
+        // minako は LINEクリックをコンバージョンゴールにする
+        let lineClicks = 0;
+        if (site === 'minako') {
+            const { count } = await applySiteFilter(
+                supabase.from('feature_events').select('*', { count: 'exact', head: true })
+                    .eq('event_type', 'minako_line_click')
+                    .gte('created_at', start)
+                    .lte('created_at', end),
+                site
+            );
+            lineClicks = count || 0;
+        }
+
         const totalEntries = (homeViews || 0) + (quizDirectViews || 0);
-        // クイズ開始数は quiz のPV（ホーム経由＋診断から開始リンク経由の両方で showPage('quiz') が叩かれるのでこれでよい）
-        const funnel = [
-            { stage: 'ホーム', count: homeViews || 0 },
-            { stage: 'クイズ開始', count: quizViews || 0 },
-            { stage: '結果表示', count: resultViews || 0 },
-            { stage: '診断完了', count: completed || 0 }
-        ];
-        
-        const conversionRate = (homeViews || 0) > 0 
-            ? Math.round((completed || 0) / homeViews * 100 * 10) / 10 
+        const funnel = site === 'minako'
+            ? [
+                { stage: 'ホーム', count: homeViews || 0 },
+                { stage: '診断開始', count: quizViews || 0 },
+                { stage: '診断完了', count: completed || 0 },
+                { stage: 'LINE遷移', count: lineClicks }
+            ]
+            : [
+                { stage: 'ホーム', count: homeViews || 0 },
+                { stage: 'クイズ開始', count: quizViews || 0 },
+                { stage: '結果表示', count: resultViews || 0 },
+                { stage: '診断完了', count: completed || 0 }
+            ];
+
+        const goalCount = site === 'minako' ? lineClicks : (completed || 0);
+        const conversionRate = (homeViews || 0) > 0
+            ? Math.round(goalCount / homeViews * 100 * 10) / 10
             : 0;
-        
+
         const quizStartRate = totalEntries > 0
             ? Math.round((quizViews || 0) / totalEntries * 100 * 10) / 10
             : 0;
-            
+
         const quizCompleteRate = (quizViews || 0) > 0
             ? Math.round((completed || 0) / (quizViews || 0) * 100 * 10) / 10
             : 0;
-        
+
+        const lineClickRate = (completed || 0) > 0
+            ? Math.round(lineClicks / (completed || 0) * 100 * 10) / 10
+            : 0;
+
         res.json({
             funnel,
             conversionRate,
             quizStartRate,
             quizCompleteRate,
+            lineClicks,
+            lineClickRate,
             quizDirectViews: quizDirectViews || 0
         });
     } catch (error) {
@@ -942,14 +1068,16 @@ app.get('/api/admin/analytics/conversion', adminAuth, async (req, res) => {
 app.get('/api/admin/analytics/heatmap', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
+        const site = normalizeSite(req.query.site);
         const start = (startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + 'T00:00:00';
         const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
-        
-        const { data } = await supabase
-            .from('page_views')
-            .select('created_at')
-            .gte('created_at', start)
-            .lte('created_at', end);
+
+        const { data } = await applySiteFilter(
+            supabase.from('page_views').select('created_at')
+                .gte('created_at', start)
+                .lte('created_at', end),
+            site
+        );
         
         const matrix = Array(7).fill(null).map(() => Array(24).fill(0));
         let maxValue = 1;
@@ -979,14 +1107,16 @@ app.get('/api/admin/analytics/heatmap', adminAuth, async (req, res) => {
 app.get('/api/admin/analytics/dropout', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
+        const site = normalizeSite(req.query.site);
         const start = (startDate || getJSTDateString(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))) + 'T00:00:00+09:00';
         const end = (endDate || getJSTDateString()) + 'T23:59:59+09:00';
-        
-        const { data } = await supabase
-            .from('quiz_progress')
-            .select('session_id, question_number, action')
-            .gte('created_at', start)
-            .lte('created_at', end);
+
+        const { data } = await applySiteFilter(
+            supabase.from('quiz_progress').select('session_id, question_number, action')
+                .gte('created_at', start)
+                .lte('created_at', end),
+            site
+        );
         
         // セッションごとに最大到達設問を集計
         const sessions = {};
@@ -1002,11 +1132,14 @@ app.get('/api/admin/analytics/dropout', adminAuth, async (req, res) => {
             }
         });
         
-        // ページ単位での到達数を集計（5問ごと = 4ページ）
-        // Q1=ページ1開始, Q6=ページ2開始, Q11=ページ3開始, Q16=ページ4開始, Q20=完了
-        // メインサイトのページ割り 2→5→6→7 に合わせたマイルストーン（各ページ開始設問番号＋完了）
-        const pageMilestones = [1, 3, 8, 14, 20];
-        const pageLabels = ['ページ1 (Q1-Q2)', 'ページ2 (Q3-Q7)', 'ページ3 (Q8-Q13)', 'ページ4 (Q14-Q20)', '診断完了'];
+        // minako: 30問・3軸（自己価値10/行動10/関係10）に合わせたマイルストーン
+        // marriage_type16: 本サイトのページ割り 2→5→6→7 に合わせた20問マイルストーン
+        const pageMilestones = site === 'minako'
+            ? [1, 11, 21, 30]
+            : [1, 3, 8, 14, 20];
+        const pageLabels = site === 'minako'
+            ? ['軸1 自己価値 (Q1-Q10)', '軸2 行動パターン (Q11-Q20)', '軸3 関係構築力 (Q21-Q30)', '診断完了']
+            : ['ページ1 (Q1-Q2)', 'ページ2 (Q3-Q7)', 'ページ3 (Q8-Q13)', 'ページ4 (Q14-Q20)', '診断完了'];
         const pageCounts = {};
         let completedCount = 0;
         const totalSessions = Object.keys(sessions).length;
@@ -1058,14 +1191,16 @@ app.get('/api/admin/analytics/dropout', adminAuth, async (req, res) => {
 app.get('/api/admin/analytics/traffic-sources', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
+        const site = normalizeSite(req.query.site);
         const start = (startDate || getJSTDateString(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))) + 'T00:00:00+09:00';
         const end = (endDate || getJSTDateString()) + 'T23:59:59+09:00';
-        
-        const { data } = await supabase
-            .from('page_views')
-            .select('referrer, utm_source, utm_medium, utm_campaign, user_agent')
-            .gte('created_at', start)
-            .lte('created_at', end);
+
+        const { data } = await applySiteFilter(
+            supabase.from('page_views').select('referrer, utm_source, utm_medium, utm_campaign, user_agent')
+                .gte('created_at', start)
+                .lte('created_at', end),
+            site
+        );
         
         // 流入元を分類
         const sources = {
@@ -1191,16 +1326,18 @@ app.get('/api/admin/analytics/traffic-sources', adminAuth, async (req, res) => {
 app.get('/api/admin/analytics/utm', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
+        const site = normalizeSite(req.query.site);
         const start = (startDate || getJSTDateString(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))) + 'T00:00:00+09:00';
         const end = (endDate || getJSTDateString()) + 'T23:59:59+09:00';
-        
-        const { data } = await supabase
-            .from('page_views')
-            .select('utm_source, utm_medium, utm_campaign')
-            .gte('created_at', start)
-            .lte('created_at', end)
-            .order('created_at', { ascending: false })
-            .limit(50000);
+
+        const { data } = await applySiteFilter(
+            supabase.from('page_views').select('utm_source, utm_medium, utm_campaign')
+                .gte('created_at', start)
+                .lte('created_at', end)
+                .order('created_at', { ascending: false })
+                .limit(50000),
+            site
+        );
         
         // ソース別集計
         const sourceCounts = {};
@@ -1254,15 +1391,17 @@ app.get('/api/admin/analytics/campaign/:campaign', adminAuth, async (req, res) =
     try {
         const { campaign } = req.params;
         const { startDate, endDate } = req.query;
+        const site = normalizeSite(req.query.site);
         const start = (startDate || getJSTDateString(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))) + 'T00:00:00+09:00';
         const end = (endDate || getJSTDateString()) + 'T23:59:59+09:00';
-        
-        const { data } = await supabase
-            .from('page_views')
-            .select('page, utm_source, utm_medium, created_at')
-            .eq('utm_campaign', campaign)
-            .gte('created_at', start)
-            .lte('created_at', end);
+
+        const { data } = await applySiteFilter(
+            supabase.from('page_views').select('page, utm_source, utm_medium, created_at')
+                .eq('utm_campaign', campaign)
+                .gte('created_at', start)
+                .lte('created_at', end),
+            site
+        );
         
         // 日別集計
         const dailyCounts = {};
@@ -1297,29 +1436,288 @@ app.get('/api/admin/analytics/campaign/:campaign', adminAuth, async (req, res) =
     }
 });
 
+// ==========================================
+// API: minako診断 アフィリエイター分析
+// ==========================================
+
+// アフィリエイター別の流入・診断・LINE遷移を一括集計
+//   各アフィリエイターID (?ref=XXX) ごとに
+//     pv / uu / 診断開始 / 診断完了 / LINE遷移 / コンバージョン率
+//   を返す。
+app.get('/api/admin/analytics/affiliates', adminAuth, async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const site = normalizeSite(req.query.site);
+        const start = (startDate || getJSTDateString(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))) + 'T00:00:00+09:00';
+        const end = (endDate || getJSTDateString()) + 'T23:59:59+09:00';
+
+        // PV / UU（affiliate_id のある行のみ）
+        const { data: pvRows } = await applySiteFilter(
+            supabase.from('page_views').select('affiliate_id, ip, page, created_at')
+                .not('affiliate_id', 'is', null)
+                .gte('created_at', start)
+                .lte('created_at', end)
+                .limit(100000),
+            site
+        );
+
+        // 診断開始（quiz_progress.action=start）
+        const { data: startRows } = await applySiteFilter(
+            supabase.from('quiz_progress').select('affiliate_id, session_id, created_at')
+                .eq('action', 'start')
+                .not('affiliate_id', 'is', null)
+                .gte('created_at', start)
+                .lte('created_at', end)
+                .limit(100000),
+            site
+        );
+
+        // 診断完了（diagnosis_results）
+        const { data: diagRows } = await applySiteFilter(
+            supabase.from('diagnosis_results').select('affiliate_id, type_code, type_name, created_at')
+                .not('affiliate_id', 'is', null)
+                .gte('created_at', start)
+                .lte('created_at', end)
+                .limit(100000),
+            site
+        );
+
+        // LINE遷移クリック（feature_events）
+        const { data: lineRows } = await applySiteFilter(
+            supabase.from('feature_events').select('affiliate_id, payload, created_at')
+                .eq('event_type', 'minako_line_click')
+                .not('affiliate_id', 'is', null)
+                .gte('created_at', start)
+                .lte('created_at', end)
+                .limit(100000),
+            site
+        );
+
+        // 集計マップ
+        const map = {};
+        const ensure = (id) => {
+            if (!map[id]) {
+                map[id] = {
+                    affiliate_id: id,
+                    pv: 0,
+                    uu: 0,
+                    _ips: new Set(),
+                    quizStart: 0,
+                    _startSessions: new Set(),
+                    diagnosis: 0,
+                    lineClicks: 0,
+                    typeBreakdown: {}
+                };
+            }
+            return map[id];
+        };
+
+        (pvRows || []).forEach(r => {
+            if (!r.affiliate_id) return;
+            const b = ensure(r.affiliate_id);
+            b.pv += 1;
+            if (r.ip) b._ips.add(r.ip);
+        });
+        (startRows || []).forEach(r => {
+            if (!r.affiliate_id) return;
+            const b = ensure(r.affiliate_id);
+            if (r.session_id) {
+                if (!b._startSessions.has(r.session_id)) {
+                    b._startSessions.add(r.session_id);
+                    b.quizStart += 1;
+                }
+            } else {
+                b.quizStart += 1;
+            }
+        });
+        (diagRows || []).forEach(r => {
+            if (!r.affiliate_id) return;
+            const b = ensure(r.affiliate_id);
+            b.diagnosis += 1;
+            const key = r.type_code || 'unknown';
+            if (!b.typeBreakdown[key]) {
+                b.typeBreakdown[key] = { type_code: key, type_name: r.type_name || '', count: 0 };
+            }
+            b.typeBreakdown[key].count += 1;
+        });
+        (lineRows || []).forEach(r => {
+            if (!r.affiliate_id) return;
+            const b = ensure(r.affiliate_id);
+            b.lineClicks += 1;
+        });
+
+        // 日別推移（上位アフィリエイター比較グラフ用）
+        const dailyByAffiliate = {};
+        (diagRows || []).forEach(r => {
+            const id = r.affiliate_id;
+            if (!id) return;
+            const date = getJSTDateString(new Date(r.created_at));
+            if (!dailyByAffiliate[id]) dailyByAffiliate[id] = {};
+            dailyByAffiliate[id][date] = (dailyByAffiliate[id][date] || 0) + 1;
+        });
+
+        const list = Object.values(map).map(b => {
+            const pv = b.pv;
+            const uu = b._ips.size;
+            const cvrToDiag = pv > 0 ? Math.round(b.diagnosis / pv * 1000) / 10 : 0;
+            const cvrToLine = pv > 0 ? Math.round(b.lineClicks / pv * 1000) / 10 : 0;
+            const completeRate = b.quizStart > 0 ? Math.round(b.diagnosis / b.quizStart * 1000) / 10 : 0;
+            const lineRate = b.diagnosis > 0 ? Math.round(b.lineClicks / b.diagnosis * 1000) / 10 : 0;
+            return {
+                affiliate_id: b.affiliate_id,
+                pv,
+                uu,
+                quizStart: b.quizStart,
+                diagnosis: b.diagnosis,
+                lineClicks: b.lineClicks,
+                cvrToDiagnosis: cvrToDiag,
+                cvrToLine,
+                completeRate,
+                lineRate,
+                typeBreakdown: Object.values(b.typeBreakdown).sort((a, b) => b.count - a.count)
+            };
+        }).sort((a, b) => b.pv - a.pv);
+
+        // 集計合計
+        const totals = list.reduce((acc, x) => {
+            acc.pv += x.pv;
+            acc.uu += x.uu;
+            acc.quizStart += x.quizStart;
+            acc.diagnosis += x.diagnosis;
+            acc.lineClicks += x.lineClicks;
+            return acc;
+        }, { pv: 0, uu: 0, quizStart: 0, diagnosis: 0, lineClicks: 0 });
+
+        res.json({
+            site,
+            period: { startDate, endDate },
+            totals,
+            affiliates: list,
+            dailyByAffiliate
+        });
+    } catch (error) {
+        console.error('Error getting affiliate analytics:', error);
+        res.status(500).json({ error: 'Failed to get affiliate analytics' });
+    }
+});
+
+// アフィリエイター別の日別推移（選択された ID の比較グラフ用）
+app.get('/api/admin/analytics/affiliates/daily', adminAuth, async (req, res) => {
+    try {
+        const { startDate, endDate, ids } = req.query;
+        const site = normalizeSite(req.query.site);
+        const start = (startDate || getJSTDateString(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))) + 'T00:00:00+09:00';
+        const end = (endDate || getJSTDateString()) + 'T23:59:59+09:00';
+        const idList = (ids || '').split(',').map(s => s.trim()).filter(Boolean);
+
+        let q = supabase.from('diagnosis_results')
+            .select('affiliate_id, created_at')
+            .not('affiliate_id', 'is', null)
+            .gte('created_at', start)
+            .lte('created_at', end)
+            .limit(100000);
+        if (idList.length > 0) q = q.in('affiliate_id', idList);
+
+        const { data } = await applySiteFilter(q, site);
+
+        const byId = {};
+        (data || []).forEach(r => {
+            const id = r.affiliate_id;
+            if (!id) return;
+            const date = getJSTDateString(new Date(r.created_at));
+            if (!byId[id]) byId[id] = {};
+            byId[id][date] = (byId[id][date] || 0) + 1;
+        });
+
+        const result = {};
+        Object.keys(byId).forEach(id => {
+            result[id] = Object.entries(byId[id])
+                .map(([date, count]) => ({ date, count }))
+                .sort((a, b) => a.date.localeCompare(b.date));
+        });
+        res.json({ series: result });
+    } catch (error) {
+        console.error('Error getting affiliates daily:', error);
+        res.status(500).json({ error: 'Failed to get affiliates daily' });
+    }
+});
+
+// minako: tier別集計 (5タイプの出現分布)
+app.get('/api/admin/analytics/minako/tiers', adminAuth, async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const start = (startDate || getJSTDateString(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))) + 'T00:00:00+09:00';
+        const end = (endDate || getJSTDateString()) + 'T23:59:59+09:00';
+
+        const { data: diagRows } = await supabase
+            .from('diagnosis_results')
+            .select('type_code, type_name')
+            .eq('site', 'minako')
+            .gte('created_at', start)
+            .lte('created_at', end)
+            .limit(100000);
+
+        const { data: lineRows } = await supabase
+            .from('feature_events')
+            .select('payload')
+            .eq('site', 'minako')
+            .eq('event_type', 'minako_line_click')
+            .gte('created_at', start)
+            .lte('created_at', end)
+            .limit(100000);
+
+        const diagByTier = {};
+        (diagRows || []).forEach(r => {
+            const key = r.type_code || 'unknown';
+            if (!diagByTier[key]) diagByTier[key] = { type_code: key, type_name: r.type_name || '', diagnosis: 0, lineClicks: 0 };
+            diagByTier[key].diagnosis += 1;
+        });
+        (lineRows || []).forEach(r => {
+            const key = (r.payload && r.payload.type_code) || 'unknown';
+            if (!diagByTier[key]) diagByTier[key] = { type_code: key, type_name: '', diagnosis: 0, lineClicks: 0 };
+            diagByTier[key].lineClicks += 1;
+        });
+
+        const list = Object.values(diagByTier).map(t => ({
+            ...t,
+            lineRate: t.diagnosis > 0 ? Math.round(t.lineClicks / t.diagnosis * 1000) / 10 : 0
+        })).sort((a, b) => b.diagnosis - a.diagnosis);
+
+        res.json({ tiers: list });
+    } catch (error) {
+        console.error('Error getting minako tiers:', error);
+        res.status(500).json({ error: 'Failed to get minako tiers' });
+    }
+});
+
 // CSVエクスポート - 診断結果
 app.get('/api/admin/export/diagnosis', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
+        const site = normalizeSite(req.query.site);
         const start = (startDate || '2020-01-01') + 'T00:00:00';
         const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
-        
-        const { data, error } = await supabase
-            .from('diagnosis_results')
-            .select('id, type_code, type_name, scores, user_agent, created_at')
-            .gte('created_at', start)
-            .lte('created_at', end)
-            .order('created_at', { ascending: false });
-        
+
+        const { data, error } = await applySiteFilter(
+            supabase.from('diagnosis_results')
+                .select('id, type_code, type_name, scores, user_agent, affiliate_id, site, created_at')
+                .gte('created_at', start)
+                .lte('created_at', end)
+                .order('created_at', { ascending: false }),
+            site
+        );
+
         if (error) throw error;
-        
-        const headers = ['ID', 'タイプコード', 'タイプ名', 'スコア', 'ユーザーエージェント', '日時'];
+
+        const headers = ['ID', 'サイト', 'タイプコード', 'タイプ名', 'アフィリエイターID', 'スコア', 'ユーザーエージェント', '日時'];
         const csv = [
             headers.join(','),
             ...(data || []).map(r => [
                 r.id,
+                r.site || 'marriage_type16',
                 r.type_code,
                 `"${r.type_name}"`,
+                r.affiliate_id || '',
                 `"${r.scores || ''}"`,
                 `"${(r.user_agent || '').replace(/"/g, '""')}"`,
                 r.created_at
@@ -1339,24 +1737,32 @@ app.get('/api/admin/export/diagnosis', adminAuth, async (req, res) => {
 app.get('/api/admin/export/pageviews', adminAuth, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
+        const site = normalizeSite(req.query.site);
         const start = (startDate || '2020-01-01') + 'T00:00:00';
         const end = (endDate || new Date().toISOString().split('T')[0]) + 'T23:59:59';
-        
-        const { data, error } = await supabase
-            .from('page_views')
-            .select('id, page, user_agent, referrer, ip, created_at')
-            .gte('created_at', start)
-            .lte('created_at', end)
-            .order('created_at', { ascending: false });
-        
+
+        const { data, error } = await applySiteFilter(
+            supabase.from('page_views')
+                .select('id, page, user_agent, referrer, ip, site, affiliate_id, utm_source, utm_medium, utm_campaign, created_at')
+                .gte('created_at', start)
+                .lte('created_at', end)
+                .order('created_at', { ascending: false }),
+            site
+        );
+
         if (error) throw error;
-        
-        const headers = ['ID', 'ページ', 'ユーザーエージェント', 'リファラー', 'IP', '日時'];
+
+        const headers = ['ID', 'サイト', 'ページ', 'アフィリエイターID', 'utm_source', 'utm_medium', 'utm_campaign', 'ユーザーエージェント', 'リファラー', 'IP', '日時'];
         const csv = [
             headers.join(','),
             ...(data || []).map(r => [
                 r.id,
+                r.site || 'marriage_type16',
                 r.page,
+                r.affiliate_id || '',
+                r.utm_source || '',
+                r.utm_medium || '',
+                r.utm_campaign || '',
                 `"${(r.user_agent || '').replace(/"/g, '""')}"`,
                 `"${(r.referrer || '').replace(/"/g, '""')}"`,
                 `"${r.ip || ''}"`,

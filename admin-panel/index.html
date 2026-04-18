@@ -130,6 +130,87 @@
             margin: 0 auto;
         }
         
+        /* Site Switcher (上部: マリッジタイプ / minako診断) */
+        .site-switch {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            background: white;
+            border-radius: 14px;
+            padding: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.06);
+        }
+        .site-switch-btn {
+            padding: 18px 16px;
+            border: 2px solid #e8ecf2;
+            background: #f8fafc;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #555;
+            transition: all 0.25s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            flex-direction: column;
+            text-align: center;
+            line-height: 1.4;
+        }
+        .site-switch-btn .site-main {
+            font-size: 1.05rem;
+        }
+        .site-switch-btn .site-sub {
+            font-size: 0.72rem;
+            color: #888;
+            font-weight: 400;
+            letter-spacing: 0.05em;
+        }
+        .site-switch-btn:hover {
+            border-color: #7EB8DA;
+            background: #f0f7fc;
+        }
+        .site-switch-btn.active[data-site="marriage_type16"] {
+            background: linear-gradient(135deg, #7EB8DA, #F5A5B8);
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 8px 22px -8px rgba(126,184,218,0.6);
+        }
+        .site-switch-btn.active[data-site="minako"] {
+            background: linear-gradient(135deg, #1f2230, #8b6d7a);
+            color: #f6f1e7;
+            border-color: transparent;
+            box-shadow: 0 8px 22px -8px rgba(31,34,48,0.5);
+        }
+        .site-switch-btn.active .site-sub {
+            color: rgba(255,255,255,0.85);
+        }
+        .site-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+        .site-badge.marriage_type16 {
+            background: rgba(126,184,218,0.15);
+            color: #4b90b8;
+        }
+        .site-badge.minako {
+            background: rgba(139,109,122,0.15);
+            color: #8b6d7a;
+        }
+        /* サイトごとの表示制御 */
+        body.site-minako .only-marriage_type16,
+        body.site-marriage_type16 .only-minako {
+            display: none !important;
+        }
+
         /* Tabs Navigation */
         .tabs {
             display: flex;
@@ -697,22 +778,39 @@
     <!-- ダッシュボード -->
     <div class="dashboard" id="dashboard">
         <header class="header">
-            <h1><span class="logo">マリッジタイプ診断</span> 管理画面</h1>
+            <h1>
+                <span class="logo">診断アナリティクス</span> 管理画面
+                <span class="site-badge marriage_type16" id="currentSiteBadge">マリッジタイプ</span>
+            </h1>
             <div class="header-actions">
                 <button class="refresh-btn" onclick="loadAllData()">🔄 更新</button>
                 <button class="logout-btn" onclick="logout()">ログアウト</button>
             </div>
         </header>
-        
+
         <main class="main">
+            <!-- サイト切替（マリッジタイプ診断 / minako診断） -->
+            <div class="site-switch" role="tablist" aria-label="診断サイト切替">
+                <button class="site-switch-btn active" data-site="marriage_type16" onclick="switchSite('marriage_type16')">
+                    <span class="site-main">💖 マリッジタイプ診断</span>
+                    <span class="site-sub">marriage-type.com / 16タイプ診断</span>
+                </button>
+                <button class="site-switch-btn" data-site="minako" onclick="switchSite('minako')">
+                    <span class="site-main">🌙 minako診断</span>
+                    <span class="site-sub">minako.marriage.type / アフィリエイター拡散</span>
+                </button>
+            </div>
+
             <!-- タブナビゲーション -->
             <div class="tabs">
                 <button class="tab-btn active" data-tab="overview">📊 概要</button>
-                <button class="tab-btn" data-tab="diagnosis-codes">🔑 診断コード</button>
+                <button class="tab-btn only-marriage_type16" data-tab="diagnosis-codes">🔑 診断コード</button>
+                <button class="tab-btn only-minako" data-tab="minako-affiliates">👥 アフィリエイター分析</button>
+                <button class="tab-btn only-minako" data-tab="minako-links">🎟️ アフィリエイトリンク発行</button>
                 <button class="tab-btn" data-tab="analysis">📈 詳細分析</button>
                 <button class="tab-btn" data-tab="conversion">🎯 コンバージョン</button>
                 <button class="tab-btn" data-tab="behavior">⏰ 行動分析</button>
-                <button class="tab-btn" data-tab="tracking">🔗 トラッキング</button>
+                <button class="tab-btn only-marriage_type16" data-tab="tracking">🔗 UTMトラッキング</button>
                 <button class="tab-btn" data-tab="export">💾 エクスポート</button>
             </div>
             
@@ -754,31 +852,41 @@
                         <h3>🆕 今日の診断</h3>
                         <div class="value" id="todayDiagnosis">-</div>
                     </div>
-                    <div class="stat-card" style="--accent: #E91E63;">
+                    <div class="stat-card only-marriage_type16" style="--accent: #E91E63;">
                         <h3>💕 恋愛占い（期間）</h3>
                         <div class="value" id="periodLoveFortune">-</div>
                         <div class="sub-value">UU: <span id="periodLoveFortuneUU">-</span> / 総計: <span id="totalLoveFortune">-</span> / 今日: <span id="todayLoveFortune">-</span> (UU: <span id="todayLoveFortuneUU">-</span>)</div>
                     </div>
-                    <div class="stat-card" style="--accent: #9C27B0;">
+                    <div class="stat-card only-marriage_type16" style="--accent: #9C27B0;">
                         <h3>🤝 相性診断（期間）</h3>
                         <div class="value" id="periodCompatibility">-</div>
                         <div class="sub-value">UU: <span id="periodCompatibilityUU">-</span> / 総計: <span id="totalCompatibility">-</span> / 今日: <span id="todayCompatibility">-</span> (UU: <span id="todayCompatibilityUU">-</span>)</div>
                     </div>
-                    <div class="stat-card" style="--accent: #009688;">
+                    <div class="stat-card only-marriage_type16" style="--accent: #009688;">
                         <h3>🔑 診断コード発行（期間）</h3>
                         <div class="value" id="periodDiagnosisCode">-</div>
                         <div class="sub-value">総計: <span id="totalDiagnosisCode">-</span> / 今日: <span id="todayDiagnosisCode">-</span></div>
                     </div>
+                    <div class="stat-card only-minako" style="--accent: #8b6d7a;">
+                        <h3>🎟️ LINE遷移（期間）</h3>
+                        <div class="value" id="periodMinakoLineClicks">-</div>
+                        <div class="sub-value">診断完了→LINE率: <span id="minakoLineRate">-</span></div>
+                    </div>
+                    <div class="stat-card only-minako" style="--accent: #b8955b;">
+                        <h3>👥 アフィリエイター</h3>
+                        <div class="value" id="periodMinakoAffiliates">-</div>
+                        <div class="sub-value">稼働中のID数（期間内に流入があった数）</div>
+                    </div>
                 </div>
-                
+
                 <div class="card">
                     <h2><span class="icon">📈</span> アクセス・診断推移</h2>
                     <div class="chart-container large">
                         <canvas id="trendChart"></canvas>
                     </div>
                 </div>
-                
-                <div class="grid-2">
+
+                <div class="grid-2 only-marriage_type16">
                     <div class="card">
                         <h2><span class="icon">💕</span> 恋愛占いグラフ</h2>
                         <div class="chart-container">
@@ -789,6 +897,21 @@
                         <h2><span class="icon">🤝</span> 相性診断グラフ</h2>
                         <div class="chart-container">
                             <canvas id="compatibilityChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid-2 only-minako">
+                    <div class="card">
+                        <h2><span class="icon">🏆</span> アフィリエイター ランキング TOP5</h2>
+                        <div id="minakoOverviewAffiliateTop" class="recent-list">
+                            <div class="loading">読み込み中...</div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h2><span class="icon">🌙</span> タイプ（tier）分布</h2>
+                        <div class="chart-container">
+                            <canvas id="minakoTierChart"></canvas>
                         </div>
                     </div>
                 </div>
@@ -810,8 +933,8 @@
                 </div>
             </div>
             
-            <!-- 診断コードタブ -->
-            <div class="tab-content" id="tab-diagnosis-codes">
+            <!-- 診断コードタブ（マリッジタイプのみ） -->
+            <div class="tab-content only-marriage_type16" id="tab-diagnosis-codes">
                 <div class="card">
                     <h2><span class="icon">🔑</span> 発行された診断コード一覧</h2>
                     <p style="color: #666; margin-bottom: 20px;">選択した期間に発行された診断コード（相性診断用）の一覧です。コード・タイプ・発行日時を確認できます。</p>
@@ -969,8 +1092,8 @@
                 </div>
             </div>
             
-            <!-- トラッキングタブ -->
-            <div class="tab-content" id="tab-tracking">
+            <!-- UTMトラッキングタブ（マリッジタイプのみ） -->
+            <div class="tab-content only-marriage_type16" id="tab-tracking">
                 <div class="grid-2">
                     <div class="card">
                         <h2><span class="icon">🔗</span> トラッキングリンク生成</h2>
@@ -1086,6 +1209,159 @@
                 </div>
             </div>
             
+            <!-- minako: アフィリエイター分析タブ -->
+            <div class="tab-content only-minako" id="tab-minako-affiliates">
+                <div class="stats-grid">
+                    <div class="stat-card primary">
+                        <h3>👥 アクティブなアフィリエイター</h3>
+                        <div class="value" id="minakoAffiliateCount">-</div>
+                        <div class="sub-value">期間内に1回以上流入があったID</div>
+                    </div>
+                    <div class="stat-card secondary">
+                        <h3>📊 アフィリエイト経由 PV</h3>
+                        <div class="value" id="minakoAffiliatePV">-</div>
+                        <div class="sub-value">UU: <span id="minakoAffiliateUU">-</span></div>
+                    </div>
+                    <div class="stat-card success">
+                        <h3>✅ アフィリエイト経由 診断完了</h3>
+                        <div class="value" id="minakoAffiliateDiag">-</div>
+                        <div class="sub-value">開始: <span id="minakoAffiliateStart">-</span></div>
+                    </div>
+                    <div class="stat-card warning">
+                        <h3>🎟️ アフィリエイト経由 LINE遷移</h3>
+                        <div class="value" id="minakoAffiliateLine">-</div>
+                        <div class="sub-value">診断→LINE率: <span id="minakoAffiliateLineRate">-</span></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2><span class="icon">🏆</span> アフィリエイター ランキング</h2>
+                    <p style="color:#666; margin-bottom:16px; font-size:0.9rem;">PV が多い順に並んでいます。列ヘッダーをクリックして並び替えできます。各アフィリエイターのリンクは「🎟️ アフィリエイトリンク発行」タブで発行・再確認できます。</p>
+                    <div style="overflow-x:auto;">
+                        <table id="minakoAffiliateTable" class="affiliate-table" style="width:100%; border-collapse:collapse; min-width:780px;">
+                            <thead>
+                                <tr style="background:#f5f7fa; border-bottom:2px solid #e0e0e0; text-align:left;">
+                                    <th style="padding:12px;">#</th>
+                                    <th style="padding:12px;">アフィリエイターID</th>
+                                    <th style="padding:12px; text-align:right;" data-sort="pv">PV</th>
+                                    <th style="padding:12px; text-align:right;" data-sort="uu">UU</th>
+                                    <th style="padding:12px; text-align:right;" data-sort="quizStart">診断開始</th>
+                                    <th style="padding:12px; text-align:right;" data-sort="diagnosis">診断完了</th>
+                                    <th style="padding:12px; text-align:right;" data-sort="lineClicks">LINE遷移</th>
+                                    <th style="padding:12px; text-align:right;" data-sort="completeRate">完了率</th>
+                                    <th style="padding:12px; text-align:right;" data-sort="lineRate">LINE率</th>
+                                    <th style="padding:12px; text-align:right;" data-sort="cvrToLine">総合CVR</th>
+                                    <th style="padding:12px; text-align:center;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="minakoAffiliateTableBody">
+                                <tr><td colspan="11" class="loading" style="text-align:center; padding:30px;">読み込み中...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p style="margin-top:12px; color:#888; font-size:0.8rem;">※ 総合CVR = LINE遷移数 ÷ PV。診断完了率 = 診断完了 ÷ 診断開始。LINE率 = LINE遷移 ÷ 診断完了。</p>
+                </div>
+
+                <div class="grid-2">
+                    <div class="card">
+                        <h2><span class="icon">📈</span> アフィリエイター別 診断完了 推移（TOP5）</h2>
+                        <div class="chart-container large">
+                            <canvas id="minakoAffiliateTrendChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h2><span class="icon">🌙</span> 選択アフィリエイター: タイプ分布</h2>
+                        <p style="color:#888; font-size:0.85rem; margin-bottom:10px;">テーブル行の「詳細」ボタンを押すと、そのIDだけのタイプ分布と日別推移を確認できます。</p>
+                        <div id="minakoAffiliateDetail" class="no-data" style="padding:20px;">
+                            左の「詳細」ボタンから選択してください
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- minako: アフィリエイトリンク発行タブ -->
+            <div class="tab-content only-minako" id="tab-minako-links">
+                <div class="grid-2">
+                    <div class="card">
+                        <h2><span class="icon">🎟️</span> アフィリエイトリンク発行</h2>
+                        <p style="color:#666; margin-bottom:20px;">アフィリエイターごとに専用リンクを発行します。発行されたリンクを渡し、SNS等で使ってもらうことで、このアナリティクスにアフィリエイターIDが紐づいた流入として蓄積されます。</p>
+
+                        <div style="display:flex; flex-direction:column; gap:15px;">
+                            <div>
+                                <label style="display:block; margin-bottom:5px; font-weight:500; color:#555;">アフィリエイター名（必須）</label>
+                                <input type="text" id="minako-aff-name" placeholder="例: さくらさん" style="width:100%; padding:10px 12px; border:2px solid #e0e0e0; border-radius:6px; font-size:0.95rem;">
+                                <small style="color:#888;">管理画面の履歴に表示される、覚えやすい名前</small>
+                            </div>
+
+                            <div>
+                                <label style="display:block; margin-bottom:5px; font-weight:500; color:#555;">アフィリエイターID（必須・半角英数）</label>
+                                <div style="display:flex; gap:8px;">
+                                    <input type="text" id="minako-aff-id" placeholder="例: sakura, aff001" style="flex:1; padding:10px 12px; border:2px solid #e0e0e0; border-radius:6px; font-size:0.95rem; font-family:monospace;">
+                                    <button type="button" onclick="generateMinakoAffiliateId()" style="padding:10px 16px; background:#f0f0f0; border:1px solid #ddd; border-radius:6px; cursor:pointer;">🎲 自動生成</button>
+                                </div>
+                                <small style="color:#888;">このIDが URL の ?ref=XXX として埋め込まれます</small>
+                            </div>
+
+                            <div>
+                                <label style="display:block; margin-bottom:5px; font-weight:500; color:#555;">流入元（任意）</label>
+                                <select id="minako-aff-source" style="width:100%; padding:10px 12px; border:2px solid #e0e0e0; border-radius:6px; font-size:0.95rem;">
+                                    <option value="">-- 指定しない（推奨・後で絞り込み可） --</option>
+                                    <option value="instagram">📷 Instagram</option>
+                                    <option value="twitter">🐦 X（Twitter）</option>
+                                    <option value="tiktok">🎵 TikTok</option>
+                                    <option value="line">💬 LINE</option>
+                                    <option value="youtube">▶️ YouTube</option>
+                                    <option value="blog">📝 ブログ</option>
+                                    <option value="other">🔗 その他</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label style="display:block; margin-bottom:5px; font-weight:500; color:#555;">メモ（任意）</label>
+                                <textarea id="minako-aff-memo" placeholder="例: 30代女性フォロワー多め、月末精算" style="width:100%; padding:10px 12px; border:2px solid #e0e0e0; border-radius:6px; font-size:0.95rem; min-height:60px; font-family:inherit;"></textarea>
+                            </div>
+
+                            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                <button onclick="generateMinakoAffiliateLink()" style="padding:14px 24px; background:linear-gradient(135deg, #1f2230, #8b6d7a); color:#f6f1e7; border:none; border-radius:8px; font-size:1rem; font-weight:bold; cursor:pointer;">
+                                    🎟️ リンクを発行
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="minako-link-area" style="display:none; margin-top:20px; padding:20px; background:#f8f9fa; border-radius:8px;">
+                            <label style="display:block; margin-bottom:8px; font-weight:500; color:#555;">発行されたリンク:</label>
+                            <div style="display:flex; gap:10px;">
+                                <input type="text" id="minako-generated-link" readonly style="flex:1; padding:12px; border:2px solid #8b6d7a; border-radius:6px; font-size:0.9rem; background:white;">
+                                <button onclick="copyMinakoLink()" style="padding:12px 20px; background:#8b6d7a; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:500;">📋 コピー</button>
+                            </div>
+                            <p id="minako-copy-success" style="display:none; color:#6BCB9E; margin-top:8px; font-size:0.9rem;">✓ コピーしました！</p>
+                        </div>
+
+                        <div style="margin-top:20px; padding:15px; background:#fff8e7; border-radius:8px; border-left:4px solid #b8955b;">
+                            <strong style="color:#333;">💡 使い方</strong>
+                            <ol style="margin:10px 0 0 20px; color:#666; line-height:1.8;">
+                                <li>アフィリエイター1人に対して ID を1つ発行</li>
+                                <li>発行リンクを本人に渡す</li>
+                                <li>「👥 アフィリエイター分析」タブで各IDの成果を確認</li>
+                                <li>報酬計算は「診断完了」または「LINE遷移」を基準にするのが一般的</li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h2><span class="icon">📋</span> 発行済みアフィリエイター一覧</h2>
+                        <p style="color:#888; font-size:0.85rem; margin-bottom:12px;">ローカル保存された発行履歴です。別端末で管理するときはCSVに書き出してください。</p>
+                        <div id="minako-aff-history" style="max-height:560px; overflow-y:auto;">
+                            <div class="loading">履歴なし</div>
+                        </div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+                            <button onclick="exportMinakoAffiliateHistoryCsv()" style="padding:8px 16px; background:#7EB8DA; color:white; border:none; border-radius:6px; cursor:pointer; font-size:0.85rem;">💾 履歴CSV</button>
+                            <button onclick="clearMinakoAffiliateHistory()" style="padding:8px 16px; background:#dc3545; color:white; border:none; border-radius:6px; cursor:pointer; font-size:0.85rem;">🗑️ 履歴クリア</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- エクスポートタブ -->
             <div class="tab-content" id="tab-export">
                 <div class="card">
@@ -1133,12 +1409,48 @@
     </div>
     
     <script>
-        const API_BASE = window.location.hostname === 'localhost' 
-            ? 'http://localhost:3001' 
+        const API_BASE = window.location.hostname === 'localhost'
+            ? 'http://localhost:3001'
             : '';
-        
+
         let apiKey = localStorage.getItem('adminApiKey') || '';
         let charts = {};
+        // 現在表示中のサイト（marriage_type16 | minako）
+        let currentSite = localStorage.getItem('adminCurrentSite') || 'marriage_type16';
+        // site クエリ付与用ヘルパー
+        function withSite(url) {
+            const sep = url.includes('?') ? '&' : '?';
+            return `${url}${sep}site=${encodeURIComponent(currentSite)}`;
+        }
+
+        // サイト切替（マリッジタイプ ↔ minako）
+        function switchSite(site) {
+            if (site !== 'marriage_type16' && site !== 'minako') return;
+            if (currentSite === site) return;
+            currentSite = site;
+            localStorage.setItem('adminCurrentSite', site);
+            applySiteMode();
+            loadAllData();
+        }
+
+        function applySiteMode() {
+            document.body.classList.toggle('site-minako', currentSite === 'minako');
+            document.body.classList.toggle('site-marriage_type16', currentSite === 'marriage_type16');
+            document.querySelectorAll('.site-switch-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.site === currentSite);
+            });
+            const badge = document.getElementById('currentSiteBadge');
+            if (badge) {
+                badge.classList.remove('marriage_type16', 'minako');
+                badge.classList.add(currentSite);
+                badge.textContent = currentSite === 'minako' ? 'minako診断' : 'マリッジタイプ';
+            }
+            // 現在選択中のタブがそのサイトで非表示なら「概要」に戻す
+            const activeBtn = document.querySelector('.tab-btn.active');
+            if (activeBtn && activeBtn.classList.contains(`only-${currentSite === 'minako' ? 'marriage_type16' : 'minako'}`)) {
+                switchTab('overview');
+            }
+        }
         
         // 初期化
         document.addEventListener('DOMContentLoaded', () => {
@@ -1170,7 +1482,7 @@
             const inputKey = document.getElementById('apiKeyInput').value;
             
             try {
-                const response = await fetch(`${API_BASE}/api/admin/dashboard`, {
+                const response = await fetch(withSite(`${API_BASE}/api/admin/dashboard`), {
                     headers: { 'X-API-Key': inputKey }
                 });
                 
@@ -1207,9 +1519,11 @@
         function showDashboard() {
             document.getElementById('loginContainer').style.display = 'none';
             document.getElementById('dashboard').style.display = 'block';
+            applySiteMode();
             loadAllData();
-            renderLinkHistory(); // 発行履歴を表示
-            
+            renderLinkHistory();           // UTMリンク発行履歴
+            renderMinakoAffiliateHistory(); // minako アフィリエイター発行履歴
+
             // 自動更新は行わない（手動で「🔄 更新」ボタンから更新）
         }
         
@@ -1228,6 +1542,12 @@
                 if (codeStart) codeStart.value = startDate;
                 if (codeEnd) codeEnd.value = endDate;
                 loadDiagnosisCodesList();
+            }
+            if (tabId === 'minako-affiliates') {
+                loadMinakoAffiliates();
+            }
+            if (tabId === 'minako-links') {
+                renderMinakoAffiliateHistory();
             }
         }
         
@@ -1284,14 +1604,20 @@
             }
             
             try {
-                await Promise.all([
+                const tasks = [
                     loadOverview(startDate, endDate),
-                    loadFeaturesAnalytics(startDate, endDate),
                     loadAnalytics(startDate, endDate),
                     loadConversion(startDate, endDate),
-                    loadBehavior(startDate, endDate),
-                    loadUTMAnalytics(startDate, endDate)
-                ]);
+                    loadBehavior(startDate, endDate)
+                ];
+                if (currentSite === 'marriage_type16') {
+                    tasks.push(loadFeaturesAnalytics(startDate, endDate));
+                    tasks.push(loadUTMAnalytics(startDate, endDate));
+                } else {
+                    tasks.push(loadMinakoAffiliates());
+                    tasks.push(loadMinakoTiers(startDate, endDate));
+                }
+                await Promise.all(tasks);
             } finally {
                 // 完了後に元に戻す
                 if (refreshBtn) {
@@ -1527,7 +1853,7 @@
         async function loadUTMAnalytics(startDate, endDate) {
             try {
                 const res = await fetch(
-                    `${API_BASE}/api/admin/analytics/utm?startDate=${startDate}&endDate=${endDate}`,
+                    withSite(`${API_BASE}/api/admin/analytics/utm?startDate=${startDate}&endDate=${endDate}`),
                     { headers: { 'X-API-Key': apiKey } }
                 );
                 const data = await res.json();
@@ -1659,7 +1985,7 @@
         async function loadOverview(startDate, endDate) {
             try {
                 // 基本ダッシュボードデータ
-                const dashboardRes = await fetch(`${API_BASE}/api/admin/dashboard`, {
+                const dashboardRes = await fetch(withSite(`${API_BASE}/api/admin/dashboard`), {
                     headers: { 'X-API-Key': apiKey }
                 });
                 
@@ -1675,11 +2001,11 @@
                 
                 // 期間指定データ
                 const analyticsRes = await fetch(
-                    `${API_BASE}/api/admin/analytics?startDate=${startDate}&endDate=${endDate}`,
+                    withSite(`${API_BASE}/api/admin/analytics?startDate=${startDate}&endDate=${endDate}`),
                     { headers: { 'X-API-Key': apiKey } }
                 );
                 const anaData = await analyticsRes.json();
-                
+
                 // 統計表示
                 document.getElementById('totalViews').textContent = dashData.totalViews.toLocaleString();
                 document.getElementById('todayViews').textContent = dashData.todayViews.toLocaleString();
@@ -1702,7 +2028,7 @@
                 renderTrendChart(anaData.dailyViews, anaData.dailyUU, anaData.dailyDiagnosis);
                 
                 // 最近の診断結果（50件に増加）
-                const recentRes = await fetch(`${API_BASE}/api/admin/diagnosis/recent?limit=50`, {
+                const recentRes = await fetch(withSite(`${API_BASE}/api/admin/diagnosis/recent?limit=50`), {
                     headers: { 'X-API-Key': apiKey }
                 });
                 const recentData = await recentRes.json();
@@ -1715,7 +2041,7 @@
         
         async function loadFeaturesAnalytics(startDate, endDate) {
             try {
-                const res = await fetch(`${API_BASE}/api/admin/analytics/features?startDate=${startDate}&endDate=${endDate}`, {
+                const res = await fetch(withSite(`${API_BASE}/api/admin/analytics/features?startDate=${startDate}&endDate=${endDate}`), {
                     headers: { 'X-API-Key': apiKey }
                 });
                 if (!res.ok) return;
@@ -1733,7 +2059,7 @@
                     if (el) el.textContent = (keys[i] != null ? keys[i] : 0).toLocaleString();
                 });
                 // 恋愛占い・相性診断の日別グラフ
-                const dailyRes = await fetch(`${API_BASE}/api/admin/analytics/features/daily?startDate=${startDate}&endDate=${endDate}`, {
+                const dailyRes = await fetch(withSite(`${API_BASE}/api/admin/analytics/features/daily?startDate=${startDate}&endDate=${endDate}`), {
                     headers: { 'X-API-Key': apiKey }
                 });
                 if (dailyRes.ok) {
@@ -1823,7 +2149,7 @@
             if (!container) return;
             container.innerHTML = '<div class="loading">読み込み中...</div>';
             try {
-                const res = await fetch(`${API_BASE}/api/admin/diagnosis-codes?startDate=${startDate}&endDate=${endDate}&limit=200`, {
+                const res = await fetch(withSite(`${API_BASE}/api/admin/diagnosis-codes?startDate=${startDate}&endDate=${endDate}&limit=200`), {
                     headers: { 'X-API-Key': apiKey }
                 });
                 const data = await res.json();
@@ -1862,7 +2188,7 @@
             const { startDate, endDate } = getDateRange();
             const start = document.getElementById('codeStartDate')?.value || startDate;
             const end = document.getElementById('codeEndDate')?.value || endDate;
-            fetch(`${API_BASE}/api/admin/diagnosis-codes?startDate=${start}&endDate=${end}&limit=1000`, {
+            fetch(withSite(`${API_BASE}/api/admin/diagnosis-codes?startDate=${start}&endDate=${end}&limit=1000`), {
                 headers: { 'X-API-Key': apiKey }
             })
             .then(res => res.json())
@@ -1887,31 +2213,31 @@
             try {
                 // デバイス分析
                 const deviceRes = await fetch(
-                    `${API_BASE}/api/admin/analytics/devices?startDate=${startDate}&endDate=${endDate}`,
+                    withSite(`${API_BASE}/api/admin/analytics/devices?startDate=${startDate}&endDate=${endDate}`),
                     { headers: { 'X-API-Key': apiKey } }
                 );
                 const deviceData = await deviceRes.json();
                 renderDeviceChart(deviceData);
-                
+
                 // 流入元分析
                 const refRes = await fetch(
-                    `${API_BASE}/api/admin/analytics/referrers?startDate=${startDate}&endDate=${endDate}`,
+                    withSite(`${API_BASE}/api/admin/analytics/referrers?startDate=${startDate}&endDate=${endDate}`),
                     { headers: { 'X-API-Key': apiKey } }
                 );
                 const refData = await refRes.json();
                 renderReferrerList(refData.referrers);
-                
+
                 // ページ別分析
                 const pageRes = await fetch(
-                    `${API_BASE}/api/admin/analytics/pages?startDate=${startDate}&endDate=${endDate}`,
+                    withSite(`${API_BASE}/api/admin/analytics/pages?startDate=${startDate}&endDate=${endDate}`),
                     { headers: { 'X-API-Key': apiKey } }
                 );
                 const pageData = await pageRes.json();
                 renderPageStats(pageData.pages);
-                
+
                 // タイプ分布円グラフ
                 const analyticsRes = await fetch(
-                    `${API_BASE}/api/admin/analytics?startDate=${startDate}&endDate=${endDate}`,
+                    withSite(`${API_BASE}/api/admin/analytics?startDate=${startDate}&endDate=${endDate}`),
                     { headers: { 'X-API-Key': apiKey } }
                 );
                 const anaData = await analyticsRes.json();
@@ -1926,7 +2252,7 @@
         async function loadConversion(startDate, endDate) {
             try {
                 const res = await fetch(
-                    `${API_BASE}/api/admin/analytics/conversion?startDate=${startDate}&endDate=${endDate}`,
+                    withSite(`${API_BASE}/api/admin/analytics/conversion?startDate=${startDate}&endDate=${endDate}`),
                     { headers: { 'X-API-Key': apiKey } }
                 );
                 const data = await res.json();
@@ -1954,40 +2280,40 @@
             try {
                 // 離脱分析
                 const dropoutRes = await fetch(
-                    `${API_BASE}/api/admin/analytics/dropout?startDate=${startDate}&endDate=${endDate}`,
+                    withSite(`${API_BASE}/api/admin/analytics/dropout?startDate=${startDate}&endDate=${endDate}`),
                     { headers: { 'X-API-Key': apiKey } }
                 );
                 const dropoutData = await dropoutRes.json();
                 renderDropoutAnalysis(dropoutData);
-                
+
                 // 流入元詳細
                 const trafficRes = await fetch(
-                    `${API_BASE}/api/admin/analytics/traffic-sources?startDate=${startDate}&endDate=${endDate}`,
+                    withSite(`${API_BASE}/api/admin/analytics/traffic-sources?startDate=${startDate}&endDate=${endDate}`),
                     { headers: { 'X-API-Key': apiKey } }
                 );
                 const trafficData = await trafficRes.json();
                 renderTrafficSources(trafficData);
                 renderDeviceDetails(trafficData.devices);
-                
+
                 // 時間帯別
                 const hourlyRes = await fetch(
-                    `${API_BASE}/api/admin/analytics/hourly?startDate=${startDate}&endDate=${endDate}`,
+                    withSite(`${API_BASE}/api/admin/analytics/hourly?startDate=${startDate}&endDate=${endDate}`),
                     { headers: { 'X-API-Key': apiKey } }
                 );
                 const hourlyData = await hourlyRes.json();
                 renderHourlyChart(hourlyData);
-                
+
                 // 曜日別
                 const weekdayRes = await fetch(
-                    `${API_BASE}/api/admin/analytics/weekday?startDate=${startDate}&endDate=${endDate}`,
+                    withSite(`${API_BASE}/api/admin/analytics/weekday?startDate=${startDate}&endDate=${endDate}`),
                     { headers: { 'X-API-Key': apiKey } }
                 );
                 const weekdayData = await weekdayRes.json();
                 renderWeekdayChart(weekdayData);
-                
+
                 // ヒートマップ
                 const heatmapRes = await fetch(
-                    `${API_BASE}/api/admin/analytics/heatmap?startDate=${startDate}&endDate=${endDate}`,
+                    withSite(`${API_BASE}/api/admin/analytics/heatmap?startDate=${startDate}&endDate=${endDate}`),
                     { headers: { 'X-API-Key': apiKey } }
                 );
                 const heatmapData = await heatmapRes.json();
@@ -2424,11 +2750,11 @@
             
             // 日別データを取得
             const analyticsRes = await fetch(
-                `${API_BASE}/api/admin/analytics?startDate=${startDate}&endDate=${endDate}`,
+                withSite(`${API_BASE}/api/admin/analytics?startDate=${startDate}&endDate=${endDate}`),
                 { headers: { 'X-API-Key': apiKey } }
             );
             const data = await analyticsRes.json();
-            
+
             const labels = data.dailyViews.map(d => {
                 const date = new Date(d.date);
                 return `${date.getMonth() + 1}/${date.getDate()}`;
@@ -2602,27 +2928,30 @@
         // CSVエクスポート
         function exportDiagnosis() {
             const { startDate, endDate } = getDateRange();
-            window.open(`${API_BASE}/api/admin/export/diagnosis?startDate=${startDate}&endDate=${endDate}&apiKey=${apiKey}`, '_blank');
-            
-            // APIキーをヘッダーで送る代わりにフォームで送信
-            const form = document.createElement('form');
-            form.method = 'GET';
-            form.action = `${API_BASE}/api/admin/export/diagnosis`;
-            form.target = '_blank';
-            
-            const params = { startDate, endDate };
-            for (const key in params) {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = key;
-                input.value = params[key];
-                form.appendChild(input);
-            }
-            
-            // APIキーをクエリに追加してダウンロード
-            const url = `${API_BASE}/api/admin/export/diagnosis?startDate=${startDate}&endDate=${endDate}`;
-            
+            // APIキーをクエリに追加してダウンロード（site付き）
+            const url = withSite(`${API_BASE}/api/admin/export/diagnosis?startDate=${startDate}&endDate=${endDate}`);
+
             fetch(url, {
+                headers: { 'X-API-Key': apiKey }
+            })
+            .then(res => res.blob())
+            .then(blob => {
+                const blobUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = `diagnosis_${currentSite}_${startDate}_${endDate}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(blobUrl);
+            })
+            .catch(err => alert('エクスポートに失敗しました'));
+        }
+
+        function exportPageviews() {
+            const { startDate, endDate } = getDateRange();
+
+            fetch(withSite(`${API_BASE}/api/admin/export/pageviews?startDate=${startDate}&endDate=${endDate}`), {
                 headers: { 'X-API-Key': apiKey }
             })
             .then(res => res.blob())
@@ -2630,7 +2959,7 @@
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `diagnosis_${startDate}_${endDate}.csv`;
+                a.download = `pageviews_${currentSite}_${startDate}_${endDate}.csv`;
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
@@ -2638,25 +2967,439 @@
             })
             .catch(err => alert('エクスポートに失敗しました'));
         }
-        
-        function exportPageviews() {
+
+        // =======================================================
+        // minako診断: アフィリエイター分析
+        // =======================================================
+        const MINAKO_SITE_URL = 'https://minako.marriage.type';
+        let minakoAffiliateSort = { key: 'pv', dir: 'desc' };
+        let lastMinakoAffiliates = [];
+        let lastMinakoDaily = {};
+
+        async function loadMinakoAffiliates() {
+            if (currentSite !== 'minako') return;
             const { startDate, endDate } = getDateRange();
-            
-            fetch(`${API_BASE}/api/admin/export/pageviews?startDate=${startDate}&endDate=${endDate}`, {
-                headers: { 'X-API-Key': apiKey }
-            })
-            .then(res => res.blob())
-            .then(blob => {
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `pageviews_${startDate}_${endDate}.csv`;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                window.URL.revokeObjectURL(url);
-            })
-            .catch(err => alert('エクスポートに失敗しました'));
+            try {
+                const res = await fetch(
+                    withSite(`${API_BASE}/api/admin/analytics/affiliates?startDate=${startDate}&endDate=${endDate}`),
+                    { headers: { 'X-API-Key': apiKey } }
+                );
+                if (!res.ok) throw new Error('failed');
+                const data = await res.json();
+                lastMinakoAffiliates = data.affiliates || [];
+                lastMinakoDaily = data.dailyByAffiliate || {};
+
+                const totals = data.totals || { pv: 0, uu: 0, quizStart: 0, diagnosis: 0, lineClicks: 0 };
+                const affCount = (data.affiliates || []).length;
+                const lineRate = totals.diagnosis > 0 ? Math.round(totals.lineClicks / totals.diagnosis * 1000) / 10 : 0;
+
+                // 詳細タブ: 上部KPI
+                setText('minakoAffiliateCount', affCount.toLocaleString());
+                setText('minakoAffiliatePV', totals.pv.toLocaleString());
+                setText('minakoAffiliateUU', totals.uu.toLocaleString());
+                setText('minakoAffiliateStart', totals.quizStart.toLocaleString());
+                setText('minakoAffiliateDiag', totals.diagnosis.toLocaleString());
+                setText('minakoAffiliateLine', totals.lineClicks.toLocaleString());
+                setText('minakoAffiliateLineRate', lineRate + '%');
+
+                // 概要タブ: minako専用KPI
+                setText('periodMinakoLineClicks', totals.lineClicks.toLocaleString());
+                setText('minakoLineRate', lineRate + '%');
+                setText('periodMinakoAffiliates', affCount.toLocaleString());
+
+                renderMinakoAffiliateTable();
+                renderMinakoOverviewTop();
+                renderMinakoAffiliateTrend();
+            } catch (e) {
+                console.error('loadMinakoAffiliates', e);
+            }
+        }
+
+        function setText(id, v) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = v;
+        }
+
+        function renderMinakoAffiliateTable() {
+            const tbody = document.getElementById('minakoAffiliateTableBody');
+            if (!tbody) return;
+            const list = sortMinakoAffiliates(lastMinakoAffiliates);
+            if (!list.length) {
+                tbody.innerHTML = '<tr><td colspan="11" class="no-data" style="text-align:center; padding:30px;">この期間にアフィリエイター経由の流入はありません</td></tr>';
+                return;
+            }
+            tbody.innerHTML = list.map((a, i) => `
+                <tr style="border-bottom:1px solid #eee;">
+                    <td style="padding:10px 12px; color:#888;">${i + 1}</td>
+                    <td style="padding:10px 12px;">
+                        <div style="font-weight:600; color:#333; font-family:monospace;">${escapeHtml(a.affiliate_id)}</div>
+                        <div style="font-size:0.78rem; color:#888;">${escapeHtml(getMinakoAffiliateName(a.affiliate_id))}</div>
+                    </td>
+                    <td style="padding:10px 12px; text-align:right;">${a.pv.toLocaleString()}</td>
+                    <td style="padding:10px 12px; text-align:right;">${a.uu.toLocaleString()}</td>
+                    <td style="padding:10px 12px; text-align:right;">${a.quizStart.toLocaleString()}</td>
+                    <td style="padding:10px 12px; text-align:right; color:#6BCB9E; font-weight:600;">${a.diagnosis.toLocaleString()}</td>
+                    <td style="padding:10px 12px; text-align:right; color:#8b6d7a; font-weight:600;">${a.lineClicks.toLocaleString()}</td>
+                    <td style="padding:10px 12px; text-align:right;">${a.completeRate}%</td>
+                    <td style="padding:10px 12px; text-align:right;">${a.lineRate}%</td>
+                    <td style="padding:10px 12px; text-align:right; font-weight:600; color:#b8955b;">${a.cvrToLine}%</td>
+                    <td style="padding:10px 12px; text-align:center;">
+                        <button onclick="showMinakoAffiliateDetail('${escapeAttr(a.affiliate_id)}')" style="padding:6px 12px; background:#f0f0f0; color:#555; border:1px solid #ddd; border-radius:4px; cursor:pointer; font-size:0.8rem;">詳細</button>
+                        <button onclick="copyMinakoAffiliateLinkFromId('${escapeAttr(a.affiliate_id)}')" style="padding:6px 12px; background:#8b6d7a; color:white; border:none; border-radius:4px; cursor:pointer; font-size:0.8rem;">📋</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function sortMinakoAffiliates(list) {
+            const k = minakoAffiliateSort.key;
+            const dir = minakoAffiliateSort.dir === 'asc' ? 1 : -1;
+            return [...list].sort((a, b) => {
+                const av = a[k] == null ? 0 : a[k];
+                const bv = b[k] == null ? 0 : b[k];
+                if (av === bv) return 0;
+                return av > bv ? dir : -dir;
+            });
+        }
+
+        function renderMinakoOverviewTop() {
+            const el = document.getElementById('minakoOverviewAffiliateTop');
+            if (!el) return;
+            const top = [...lastMinakoAffiliates].sort((a, b) => b.diagnosis - a.diagnosis).slice(0, 5);
+            if (!top.length) {
+                el.innerHTML = '<div class="no-data">まだデータがありません</div>';
+                return;
+            }
+            el.innerHTML = top.map((a, i) => `
+                <div class="recent-item">
+                    <div>
+                        <span class="type" style="color:#b8955b;">${i + 1}位</span>
+                        <span style="font-family:monospace; font-weight:600;">${escapeHtml(a.affiliate_id)}</span>
+                        <span style="color:#888; font-size:0.8rem;">${escapeHtml(getMinakoAffiliateName(a.affiliate_id))}</span>
+                    </div>
+                    <div class="time">
+                        診断 <strong style="color:#6BCB9E;">${a.diagnosis}</strong> /
+                        LINE <strong style="color:#8b6d7a;">${a.lineClicks}</strong>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderMinakoAffiliateTrend() {
+            const ctx = document.getElementById('minakoAffiliateTrendChart');
+            if (!ctx) return;
+            if (charts.minakoAffTrend) charts.minakoAffTrend.destroy();
+            // TOP5のアフィリエイターに絞って診断完了の日別推移を描く
+            const top = [...lastMinakoAffiliates].sort((a, b) => b.diagnosis - a.diagnosis).slice(0, 5);
+            const allDates = new Set();
+            top.forEach(a => {
+                const daily = lastMinakoDaily[a.affiliate_id] || {};
+                Object.keys(daily).forEach(d => allDates.add(d));
+            });
+            const dates = Array.from(allDates).sort();
+            if (!dates.length || !top.length) {
+                charts.minakoAffTrend = new Chart(ctx.getContext('2d'), {
+                    type: 'line',
+                    data: { labels: ['データなし'], datasets: [{ label: '診断完了', data: [0], borderColor: '#ccc' }] },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+                return;
+            }
+            const labels = dates.map(d => { const x = new Date(d); return `${x.getMonth()+1}/${x.getDate()}`; });
+            const palette = ['#b8955b', '#8b6d7a', '#7EB8DA', '#6BCB9E', '#F5A5B8'];
+            const datasets = top.map((a, i) => {
+                const daily = lastMinakoDaily[a.affiliate_id] || {};
+                return {
+                    label: `${a.affiliate_id}${getMinakoAffiliateName(a.affiliate_id) ? ' ('+getMinakoAffiliateName(a.affiliate_id)+')' : ''}`,
+                    data: dates.map(d => daily[d] || 0),
+                    borderColor: palette[i % palette.length],
+                    backgroundColor: palette[i % palette.length] + '20',
+                    fill: false,
+                    tension: 0.3
+                };
+            });
+            charts.minakoAffTrend = new Chart(ctx.getContext('2d'), {
+                type: 'line',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                }
+            });
+        }
+
+        function showMinakoAffiliateDetail(id) {
+            const el = document.getElementById('minakoAffiliateDetail');
+            if (!el) return;
+            const a = lastMinakoAffiliates.find(x => x.affiliate_id === id);
+            if (!a) {
+                el.innerHTML = '<div class="no-data">データが見つかりません</div>';
+                return;
+            }
+            const typeHtml = (a.typeBreakdown || []).length
+                ? a.typeBreakdown.map(t => `
+                    <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #eee;">
+                        <span style="color:#555;">${escapeHtml(t.type_code)} <span style="color:#888; font-size:0.85rem;">${escapeHtml(t.type_name || '')}</span></span>
+                        <strong style="color:#b8955b;">${t.count}</strong>
+                    </div>
+                `).join('')
+                : '<div class="no-data" style="padding:10px;">まだ診断完了がありません</div>';
+            const daily = lastMinakoDaily[id] || {};
+            const dailyArr = Object.entries(daily).sort((x, y) => x[0].localeCompare(y[0]));
+            const dailyHtml = dailyArr.length
+                ? `<div style="margin-top:14px;"><strong>日別 診断完了:</strong><div style="max-height:160px; overflow-y:auto; margin-top:6px;">${dailyArr.map(([d, c]) => `<div style='display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px dotted #eee;'><span style='color:#666;'>${d}</span><strong>${c}</strong></div>`).join('')}</div></div>`
+                : '';
+            el.classList.remove('no-data');
+            el.style.padding = '0';
+            el.innerHTML = `
+                <div style="padding:16px;">
+                    <div style="font-weight:600; font-family:monospace; margin-bottom:4px;">${escapeHtml(id)}</div>
+                    <div style="font-size:0.85rem; color:#888; margin-bottom:10px;">${escapeHtml(getMinakoAffiliateName(id)) || '名前未登録'}</div>
+                    <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; margin-bottom:14px;">
+                        <div style="background:#f8f9fa; padding:10px; border-radius:6px;"><div style="font-size:0.75rem; color:#888;">PV</div><strong>${a.pv.toLocaleString()}</strong></div>
+                        <div style="background:#f8f9fa; padding:10px; border-radius:6px;"><div style="font-size:0.75rem; color:#888;">UU</div><strong>${a.uu.toLocaleString()}</strong></div>
+                        <div style="background:#f8f9fa; padding:10px; border-radius:6px;"><div style="font-size:0.75rem; color:#888;">診断完了</div><strong style="color:#6BCB9E;">${a.diagnosis.toLocaleString()}</strong></div>
+                        <div style="background:#f8f9fa; padding:10px; border-radius:6px;"><div style="font-size:0.75rem; color:#888;">LINE遷移</div><strong style="color:#8b6d7a;">${a.lineClicks.toLocaleString()}</strong></div>
+                    </div>
+                    <div><strong>タイプ（tier）別 内訳:</strong><div style="margin-top:6px;">${typeHtml}</div></div>
+                    ${dailyHtml}
+                </div>
+            `;
+        }
+
+        async function loadMinakoTiers(startDate, endDate) {
+            if (currentSite !== 'minako') return;
+            try {
+                const res = await fetch(
+                    `${API_BASE}/api/admin/analytics/minako/tiers?startDate=${startDate}&endDate=${endDate}`,
+                    { headers: { 'X-API-Key': apiKey } }
+                );
+                if (!res.ok) return;
+                const data = await res.json();
+                renderMinakoTierChart(data.tiers || []);
+            } catch (e) {
+                console.error('loadMinakoTiers', e);
+            }
+        }
+
+        function renderMinakoTierChart(tiers) {
+            const ctx = document.getElementById('minakoTierChart');
+            if (!ctx) return;
+            if (charts.minakoTier) charts.minakoTier.destroy();
+            if (!tiers.length) {
+                charts.minakoTier = new Chart(ctx.getContext('2d'), {
+                    type: 'doughnut',
+                    data: { labels: ['データなし'], datasets: [{ data: [1], backgroundColor: ['#ddd'] }] }
+                });
+                return;
+            }
+            const palette = ['#8b6d7a', '#b8955b', '#d4b887', '#6BCB9E', '#F5A5B8'];
+            charts.minakoTier = new Chart(ctx.getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: tiers.map(t => (t.type_name || t.type_code) + ` (${t.diagnosis})`),
+                    datasets: [{
+                        data: tiers.map(t => t.diagnosis),
+                        backgroundColor: tiers.map((_, i) => palette[i % palette.length])
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'right' } }
+                }
+            });
+        }
+
+        // テーブル列ヘッダーのクリックでソート
+        document.addEventListener('click', (e) => {
+            const th = e.target.closest('#minakoAffiliateTable th[data-sort]');
+            if (!th) return;
+            const key = th.dataset.sort;
+            if (minakoAffiliateSort.key === key) {
+                minakoAffiliateSort.dir = minakoAffiliateSort.dir === 'desc' ? 'asc' : 'desc';
+            } else {
+                minakoAffiliateSort.key = key;
+                minakoAffiliateSort.dir = 'desc';
+            }
+            renderMinakoAffiliateTable();
+        });
+
+        function escapeHtml(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+                '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+            })[c]);
+        }
+        function escapeAttr(s) {
+            return String(s == null ? '' : s).replace(/['"\\<>]/g, '_');
+        }
+
+        // =======================================================
+        // minako: アフィリエイトリンク発行（履歴はlocalStorage）
+        // =======================================================
+        function getMinakoAffHistory() {
+            try { return JSON.parse(localStorage.getItem('minakoAffiliateHistory') || '[]'); }
+            catch(e) { return []; }
+        }
+        function setMinakoAffHistory(list) {
+            localStorage.setItem('minakoAffiliateHistory', JSON.stringify(list));
+        }
+        function getMinakoAffiliateName(id) {
+            const list = getMinakoAffHistory();
+            const found = list.find(x => x.id === id);
+            return found ? (found.name || '') : '';
+        }
+
+        function generateMinakoAffiliateId() {
+            // 簡易ID生成（衝突回避のため日付＋ランダム）
+            const rand = Math.random().toString(36).slice(2, 8);
+            const input = document.getElementById('minako-aff-id');
+            if (input) input.value = rand;
+        }
+
+        function generateMinakoAffiliateLink() {
+            const name = (document.getElementById('minako-aff-name').value || '').trim();
+            const id = (document.getElementById('minako-aff-id').value || '').trim();
+            const source = document.getElementById('minako-aff-source').value;
+            const memo = (document.getElementById('minako-aff-memo').value || '').trim();
+            if (!name) { alert('アフィリエイター名を入力してください'); return; }
+            if (!id) { alert('アフィリエイターIDを入力してください'); return; }
+            if (!/^[A-Za-z0-9_\-]+$/.test(id)) { alert('IDは半角英数字・ハイフン・アンダースコアのみ使用できます'); return; }
+
+            const url = buildMinakoAffiliateUrl(id, source);
+            document.getElementById('minako-generated-link').value = url;
+            document.getElementById('minako-link-area').style.display = 'block';
+            document.getElementById('minako-copy-success').style.display = 'none';
+
+            // 履歴に追加（ID重複は上書き）
+            const list = getMinakoAffHistory();
+            const existingIdx = list.findIndex(x => x.id === id);
+            const item = { id, name, source: source || '', memo, url, createdAt: new Date().toISOString() };
+            if (existingIdx >= 0) list[existingIdx] = Object.assign({}, list[existingIdx], item);
+            else list.unshift(item);
+            setMinakoAffHistory(list);
+            renderMinakoAffiliateHistory();
+
+            // フォームはID以外クリア（続けて別のアフィリエイターを発行しやすく）
+            document.getElementById('minako-aff-name').value = '';
+            document.getElementById('minako-aff-id').value = '';
+            document.getElementById('minako-aff-memo').value = '';
+        }
+
+        function buildMinakoAffiliateUrl(id, source) {
+            const params = new URLSearchParams();
+            params.set('ref', id);
+            if (source) {
+                params.set('utm_source', source);
+                params.set('utm_medium', 'affiliate');
+                params.set('utm_campaign', id);
+            }
+            return `${MINAKO_SITE_URL}/?${params.toString()}`;
+        }
+
+        function copyMinakoLink() {
+            const el = document.getElementById('minako-generated-link');
+            if (!el) return;
+            copyText(el.value, () => {
+                const s = document.getElementById('minako-copy-success');
+                if (s) { s.style.display = 'block'; setTimeout(() => s.style.display = 'none', 2500); }
+            });
+        }
+
+        function copyMinakoAffiliateLinkFromId(id) {
+            const list = getMinakoAffHistory();
+            const found = list.find(x => x.id === id);
+            const url = (found && found.url) || buildMinakoAffiliateUrl(id, '');
+            copyText(url, () => alert('コピーしました: ' + url));
+        }
+
+        function copyText(text, onSuccess) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(onSuccess, () => fallbackCopyText(text, onSuccess));
+            } else {
+                fallbackCopyText(text, onSuccess);
+            }
+        }
+        function fallbackCopyText(text, onSuccess) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); onSuccess && onSuccess(); } catch(e){}
+            document.body.removeChild(ta);
+        }
+
+        function renderMinakoAffiliateHistory() {
+            const container = document.getElementById('minako-aff-history');
+            if (!container) return;
+            const list = getMinakoAffHistory();
+            if (!list.length) {
+                container.innerHTML = '<div style="color:#888; text-align:center; padding:20px;">発行履歴がありません</div>';
+                return;
+            }
+            container.innerHTML = list.map((x, i) => {
+                const dt = new Date(x.createdAt);
+                const dstr = `${dt.getMonth()+1}/${dt.getDate()} ${dt.getHours()}:${String(dt.getMinutes()).padStart(2,'0')}`;
+                const sourceTag = x.source ? `<span style="font-size:0.7rem; background:#f0e8e0; color:#8b6d7a; padding:2px 6px; border-radius:4px; margin-left:6px;">${escapeHtml(x.source)}</span>` : '';
+                return `
+                    <div style="padding:12px; border-bottom:1px solid #eee;">
+                        <div style="display:flex; justify-content:space-between; gap:8px; align-items:flex-start;">
+                            <div style="flex:1; min-width:0;">
+                                <div style="font-weight:600; color:#333;">${escapeHtml(x.name)} ${sourceTag}</div>
+                                <div style="font-family:monospace; color:#8b6d7a; font-size:0.9rem; margin-top:2px;">${escapeHtml(x.id)}</div>
+                                ${x.memo ? `<div style="font-size:0.8rem; color:#888; margin-top:4px;">📝 ${escapeHtml(x.memo)}</div>` : ''}
+                                <div style="font-size:0.75rem; color:#aaa; margin-top:4px;">${dstr}</div>
+                            </div>
+                            <div style="display:flex; flex-direction:column; gap:6px;">
+                                <button onclick="copyMinakoAffHistoryByIndex(${i})" style="padding:6px 10px; background:#8b6d7a; color:white; border:none; border-radius:4px; cursor:pointer; font-size:0.8rem;">📋 コピー</button>
+                                <button onclick="deleteMinakoAffHistory(${i})" style="padding:6px 10px; background:#f0f0f0; color:#888; border:1px solid #ddd; border-radius:4px; cursor:pointer; font-size:0.8rem;">削除</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function copyMinakoAffHistoryByIndex(i) {
+            const list = getMinakoAffHistory();
+            const item = list[i];
+            if (!item) return;
+            copyText(item.url, () => alert('コピーしました'));
+        }
+        function deleteMinakoAffHistory(i) {
+            if (!confirm('この発行履歴を削除しますか？（発行済みのリンクは生き続けますが、管理画面上の履歴からは消えます）')) return;
+            const list = getMinakoAffHistory();
+            list.splice(i, 1);
+            setMinakoAffHistory(list);
+            renderMinakoAffiliateHistory();
+        }
+        function clearMinakoAffiliateHistory() {
+            if (!confirm('発行履歴をすべて削除しますか？')) return;
+            localStorage.removeItem('minakoAffiliateHistory');
+            renderMinakoAffiliateHistory();
+        }
+        function exportMinakoAffiliateHistoryCsv() {
+            const list = getMinakoAffHistory();
+            if (!list.length) { alert('履歴がありません'); return; }
+            const header = '名前,ID,流入元,メモ,URL,発行日時\n';
+            const rows = list.map(x => [
+                `"${(x.name || '').replace(/"/g, '""')}"`,
+                x.id,
+                x.source || '',
+                `"${(x.memo || '').replace(/"/g, '""')}"`,
+                x.url,
+                x.createdAt
+            ].join(',')).join('\n');
+            const csv = '\uFEFF' + header + rows;
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `minako_affiliates_${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+            window.URL.revokeObjectURL(url);
         }
     </script>
 </body>
