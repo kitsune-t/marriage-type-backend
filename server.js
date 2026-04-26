@@ -231,6 +231,59 @@ app.post('/api/track/minako-line-click', async (req, res) => {
     }
 });
 
+// minako LP: 「LINEで診断する」ボタン（LP→LINE）クリック記録
+// アフィリエイター報酬の根拠になる重要イベント
+app.post('/api/track/lp-line-click', async (req, res) => {
+    try {
+        const { slug, line_url } = req.body;
+        const ip = getClientIp(req);
+        const { error } = await supabase
+            .from('feature_events')
+            .insert({
+                event_type: 'lp_line_click',
+                site: 'minako',
+                affiliate_id: slug || null,
+                payload: {
+                    slug: slug || null,
+                    line_url: line_url || null
+                },
+                ip: ip || null
+            });
+        if (error) throw error;
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error tracking lp-line-click:', error);
+        res.status(500).json({ error: 'Failed to track lp-line-click' });
+    }
+});
+
+// LP公開API: フロントが ?ref=<slug> から該当アフィリエイターのLINE URLを取得
+// 認証不要。is_active=false や存在しない slug は 404
+app.get('/api/affiliates/:slug', async (req, res) => {
+    try {
+        const slug = (req.params.slug || '').trim();
+        const site = normalizeSite(req.query.site);
+        if (!slug) return res.status(400).json({ error: 'slug required' });
+        const { data, error } = await supabase
+            .from('affiliates')
+            .select('slug, name, line_url, is_active, source')
+            .eq('site', site)
+            .eq('slug', slug)
+            .maybeSingle();
+        if (error) throw error;
+        if (!data || !data.is_active) return res.status(404).json({ error: 'not found' });
+        res.json({
+            slug: data.slug,
+            name: data.name,
+            line_url: data.line_url,
+            source: data.source || null
+        });
+    } catch (error) {
+        console.error('Error fetching affiliate:', error);
+        res.status(500).json({ error: 'Failed to fetch affiliate' });
+    }
+});
+
 // UU用: リクエストからIPを取得（feature_events用）
 function getClientIp(req) {
     const raw = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
@@ -1776,6 +1829,194 @@ app.get('/api/admin/export/pageviews', adminAuth, async (req, res) => {
     } catch (error) {
         console.error('Error exporting pageviews:', error);
         res.status(500).json({ error: 'Failed to export pageviews' });
+    }
+});
+
+// ============================================================
+// アフィリエイト管理 CRUD（管理画面専用）
+// ============================================================
+
+const SLUG_PATTERN = /^[A-Za-z0-9_-]{2,40}$/;
+
+function isValidLineUrl(s) {
+    if (typeof s !== 'string') return false;
+    const trimmed = s.trim();
+    if (!trimmed) return false;
+    return /^https?:\/\//i.test(trimmed);
+}
+
+// 一覧取得 + LP/LINE集計（指定期間で）
+app.get('/api/admin/affiliates', adminAuth, async (req, res) => {
+    try {
+        const site = normalizeSite(req.query.site);
+        const { startDate, endDate } = req.query;
+        const { data: affs, error } = await supabase
+            .from('affiliates')
+            .select('id, slug, name, line_url, source, memo, is_active, site, created_at, updated_at')
+            .eq('site', site)
+            .order('created_at', { ascending: false })
+            .limit(1000);
+        if (error) throw error;
+        const list = affs || [];
+
+        // 期間内の集計を取って各アフィリエイトに合体
+        const start = startDate ? `${startDate}T00:00:00Z` : '1970-01-01T00:00:00Z';
+        const end = endDate ? `${endDate}T23:59:59Z` : '2999-12-31T23:59:59Z';
+
+        // LP閲覧（page_views: page='lp' 想定）
+        const { data: pvRows } = await supabase
+            .from('page_views')
+            .select('affiliate_id, ip')
+            .eq('site', site)
+            .eq('page', 'lp')
+            .not('affiliate_id', 'is', null)
+            .gte('created_at', start)
+            .lte('created_at', end)
+            .limit(100000);
+
+        // LP→LINEクリック
+        const { data: lpClickRows } = await supabase
+            .from('feature_events')
+            .select('affiliate_id')
+            .eq('site', site)
+            .eq('event_type', 'lp_line_click')
+            .not('affiliate_id', 'is', null)
+            .gte('created_at', start)
+            .lte('created_at', end)
+            .limit(100000);
+
+        const stats = {};
+        const ensure = (slug) => {
+            if (!stats[slug]) stats[slug] = { pv: 0, uu: 0, _ips: new Set(), lpLineClicks: 0 };
+            return stats[slug];
+        };
+        (pvRows || []).forEach(r => {
+            const s = ensure(r.affiliate_id);
+            s.pv += 1;
+            if (r.ip) s._ips.add(r.ip);
+        });
+        (lpClickRows || []).forEach(r => {
+            ensure(r.affiliate_id).lpLineClicks += 1;
+        });
+
+        const result = list.map(a => {
+            const st = stats[a.slug] || { pv: 0, lpLineClicks: 0, _ips: new Set() };
+            const uu = st._ips ? st._ips.size : 0;
+            const cvr = st.pv > 0 ? (st.lpLineClicks / st.pv) : 0;
+            return {
+                id: a.id,
+                slug: a.slug,
+                name: a.name,
+                line_url: a.line_url,
+                source: a.source || '',
+                memo: a.memo || '',
+                is_active: a.is_active,
+                created_at: a.created_at,
+                updated_at: a.updated_at,
+                pv: st.pv,
+                uu,
+                lpLineClicks: st.lpLineClicks,
+                cvrToLine: cvr
+            };
+        });
+
+        res.json({ affiliates: result });
+    } catch (error) {
+        console.error('Error listing affiliates:', error);
+        res.status(500).json({ error: 'Failed to list affiliates' });
+    }
+});
+
+// 作成
+app.post('/api/admin/affiliates', adminAuth, async (req, res) => {
+    try {
+        const site = normalizeSite(req.body.site || req.query.site);
+        const { slug, name, line_url, source, memo, is_active } = req.body;
+        if (!slug || !SLUG_PATTERN.test(slug)) {
+            return res.status(400).json({ error: 'slug は半角英数・ハイフン・アンダースコアの2〜40文字' });
+        }
+        if (!name || !String(name).trim()) {
+            return res.status(400).json({ error: 'name は必須' });
+        }
+        if (!isValidLineUrl(line_url)) {
+            return res.status(400).json({ error: 'line_url は https:// で始まるURLが必要' });
+        }
+        const { data, error } = await supabase
+            .from('affiliates')
+            .insert({
+                slug: String(slug).trim(),
+                name: String(name).trim(),
+                line_url: String(line_url).trim(),
+                source: source ? String(source).trim() : null,
+                memo: memo ? String(memo).trim() : null,
+                is_active: is_active === false ? false : true,
+                site
+            })
+            .select()
+            .maybeSingle();
+        if (error) {
+            // ユニーク制約違反
+            if (error.code === '23505') return res.status(409).json({ error: 'この slug は既に登録されています' });
+            throw error;
+        }
+        res.json({ affiliate: data });
+    } catch (error) {
+        console.error('Error creating affiliate:', error);
+        res.status(500).json({ error: 'Failed to create affiliate' });
+    }
+});
+
+// 更新
+app.patch('/api/admin/affiliates/:id', adminAuth, async (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (!Number.isFinite(id)) return res.status(400).json({ error: 'invalid id' });
+        const patch = {};
+        if (typeof req.body.name === 'string') {
+            const v = req.body.name.trim();
+            if (!v) return res.status(400).json({ error: 'name は空にできません' });
+            patch.name = v;
+        }
+        if (typeof req.body.line_url === 'string') {
+            if (!isValidLineUrl(req.body.line_url)) return res.status(400).json({ error: 'line_url は https:// で始まるURL' });
+            patch.line_url = req.body.line_url.trim();
+        }
+        if (typeof req.body.source === 'string') patch.source = req.body.source.trim() || null;
+        if (typeof req.body.memo === 'string') patch.memo = req.body.memo.trim() || null;
+        if (typeof req.body.is_active === 'boolean') patch.is_active = req.body.is_active;
+
+        if (Object.keys(patch).length === 0) {
+            return res.status(400).json({ error: '更新するフィールドがありません' });
+        }
+        const { data, error } = await supabase
+            .from('affiliates')
+            .update(patch)
+            .eq('id', id)
+            .select()
+            .maybeSingle();
+        if (error) throw error;
+        if (!data) return res.status(404).json({ error: 'not found' });
+        res.json({ affiliate: data });
+    } catch (error) {
+        console.error('Error updating affiliate:', error);
+        res.status(500).json({ error: 'Failed to update affiliate' });
+    }
+});
+
+// 削除
+app.delete('/api/admin/affiliates/:id', adminAuth, async (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (!Number.isFinite(id)) return res.status(400).json({ error: 'invalid id' });
+        const { error } = await supabase
+            .from('affiliates')
+            .delete()
+            .eq('id', id);
+        if (error) throw error;
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error deleting affiliate:', error);
+        res.status(500).json({ error: 'Failed to delete affiliate' });
     }
 });
 

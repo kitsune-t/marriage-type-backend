@@ -806,7 +806,7 @@
                 <button class="tab-btn active" data-tab="overview">📊 概要</button>
                 <button class="tab-btn only-marriage_type16" data-tab="diagnosis-codes">🔑 診断コード</button>
                 <button class="tab-btn only-minako" data-tab="minako-affiliates">👥 アフィリエイター分析</button>
-                <button class="tab-btn only-minako" data-tab="minako-links">🎟️ アフィリエイトリンク発行</button>
+                <button class="tab-btn only-minako" data-tab="minako-links">🎟 アフィリエイト管理</button>
                 <button class="tab-btn" data-tab="analysis">📈 詳細分析</button>
                 <button class="tab-btn" data-tab="conversion">🎯 コンバージョン</button>
                 <button class="tab-btn" data-tab="behavior">⏰ 行動分析</button>
@@ -1283,29 +1283,35 @@
             <div class="tab-content only-minako" id="tab-minako-links">
                 <div class="grid-2">
                     <div class="card">
-                        <h2><span class="icon">🎟️</span> アフィリエイトリンク発行</h2>
-                        <p style="color:#666; margin-bottom:20px;">アフィリエイターごとに専用リンクを発行します。発行されたリンクを渡し、SNS等で使ってもらうことで、このアナリティクスにアフィリエイターIDが紐づいた流入として蓄積されます。</p>
+                        <h2><span class="icon">🎟</span> アフィリエイト追加</h2>
+                        <p style="color:#666; margin-bottom:20px;">アフィリエイター毎に専用LPを作成します。アフィリエイター名と LINE 流入経路リンクを登録すると、<strong>?ref=&lt;slug&gt;</strong> 付きのLP URLが発行され、LP上の「LINEで診断する」ボタンが登録した LINE URL に飛びます。</p>
 
                         <div style="display:flex; flex-direction:column; gap:15px;">
                             <div>
                                 <label style="display:block; margin-bottom:5px; font-weight:500; color:#555;">アフィリエイター名（必須）</label>
-                                <input type="text" id="minako-aff-name" placeholder="例: さくらさん" style="width:100%; padding:10px 12px; border:2px solid #e0e0e0; border-radius:6px; font-size:0.95rem;">
-                                <small style="color:#888;">管理画面の履歴に表示される、覚えやすい名前</small>
+                                <input type="text" id="aff-name" placeholder="例: さくらさん" style="width:100%; padding:10px 12px; border:2px solid #e0e0e0; border-radius:6px; font-size:0.95rem;">
+                                <small style="color:#888;">管理画面で表示される名前</small>
                             </div>
 
                             <div>
-                                <label style="display:block; margin-bottom:5px; font-weight:500; color:#555;">アフィリエイターID（必須・半角英数）</label>
+                                <label style="display:block; margin-bottom:5px; font-weight:500; color:#555;">スラッグ（必須・半角英数）</label>
                                 <div style="display:flex; gap:8px;">
-                                    <input type="text" id="minako-aff-id" placeholder="例: sakura, aff001" style="flex:1; padding:10px 12px; border:2px solid #e0e0e0; border-radius:6px; font-size:0.95rem; font-family:monospace;">
-                                    <button type="button" onclick="generateMinakoAffiliateId()" style="padding:10px 16px; background:#f0f0f0; border:1px solid #ddd; border-radius:6px; cursor:pointer;">🎲 自動生成</button>
+                                    <input type="text" id="aff-slug" placeholder="例: sakura, aff001" style="flex:1; padding:10px 12px; border:2px solid #e0e0e0; border-radius:6px; font-size:0.95rem; font-family:monospace;">
+                                    <button type="button" onclick="generateAffiliateSlug()" style="padding:10px 16px; background:#f0f0f0; border:1px solid #ddd; border-radius:6px; cursor:pointer;">🎲 自動生成</button>
                                 </div>
-                                <small style="color:#888;">このIDが URL の ?ref=XXX として埋め込まれます</small>
+                                <small style="color:#888;">URL の ?ref=XXX に埋め込まれる識別子（2〜40文字）</small>
+                            </div>
+
+                            <div>
+                                <label style="display:block; margin-bottom:5px; font-weight:500; color:#555;">LINE 流入経路リンク（必須）</label>
+                                <input type="url" id="aff-line-url" placeholder="https://lin.ee/xxxxxxx" style="width:100%; padding:10px 12px; border:2px solid #e0e0e0; border-radius:6px; font-size:0.95rem; font-family:monospace;">
+                                <small style="color:#888;">LP上の「LINEで診断する」ボタンが飛ぶURL（Lステップで発行する流入経路リンク）</small>
                             </div>
 
                             <div>
                                 <label style="display:block; margin-bottom:5px; font-weight:500; color:#555;">流入元（任意）</label>
-                                <select id="minako-aff-source" style="width:100%; padding:10px 12px; border:2px solid #e0e0e0; border-radius:6px; font-size:0.95rem;">
-                                    <option value="">-- 指定しない（推奨・後で絞り込み可） --</option>
+                                <select id="aff-source" style="width:100%; padding:10px 12px; border:2px solid #e0e0e0; border-radius:6px; font-size:0.95rem;">
+                                    <option value="">-- 指定しない --</option>
                                     <option value="instagram">📷 Instagram</option>
                                     <option value="twitter">🐦 X（Twitter）</option>
                                     <option value="tiktok">🎵 TikTok</option>
@@ -1318,45 +1324,99 @@
 
                             <div>
                                 <label style="display:block; margin-bottom:5px; font-weight:500; color:#555;">メモ（任意）</label>
-                                <textarea id="minako-aff-memo" placeholder="例: 30代女性フォロワー多め、月末精算" style="width:100%; padding:10px 12px; border:2px solid #e0e0e0; border-radius:6px; font-size:0.95rem; min-height:60px; font-family:inherit;"></textarea>
+                                <textarea id="aff-memo" placeholder="例: 30代女性フォロワー多め、月末精算" style="width:100%; padding:10px 12px; border:2px solid #e0e0e0; border-radius:6px; font-size:0.95rem; min-height:60px; font-family:inherit;"></textarea>
                             </div>
 
                             <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                                <button onclick="generateMinakoAffiliateLink()" style="padding:14px 24px; background:linear-gradient(135deg, #1f2230, #8b6d7a); color:#f6f1e7; border:none; border-radius:8px; font-size:1rem; font-weight:bold; cursor:pointer;">
-                                    🎟️ リンクを発行
+                                <button onclick="submitAffiliateForm()" style="padding:14px 24px; background:linear-gradient(135deg, #1f2230, #8b6d7a); color:#f6f1e7; border:none; border-radius:8px; font-size:1rem; font-weight:bold; cursor:pointer;">
+                                    🎟 アフィリエイター登録
                                 </button>
                             </div>
-                        </div>
-
-                        <div id="minako-link-area" style="display:none; margin-top:20px; padding:20px; background:#f8f9fa; border-radius:8px;">
-                            <label style="display:block; margin-bottom:8px; font-weight:500; color:#555;">発行されたリンク:</label>
-                            <div style="display:flex; gap:10px;">
-                                <input type="text" id="minako-generated-link" readonly style="flex:1; padding:12px; border:2px solid #8b6d7a; border-radius:6px; font-size:0.9rem; background:white;">
-                                <button onclick="copyMinakoLink()" style="padding:12px 20px; background:#8b6d7a; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:500;">📋 コピー</button>
-                            </div>
-                            <p id="minako-copy-success" style="display:none; color:#6BCB9E; margin-top:8px; font-size:0.9rem;">✓ コピーしました！</p>
+                            <p id="aff-form-msg" style="display:none; margin-top:6px; font-size:0.9rem;"></p>
                         </div>
 
                         <div style="margin-top:20px; padding:15px; background:#fff8e7; border-radius:8px; border-left:4px solid #b8955b;">
-                            <strong style="color:#333;">💡 使い方</strong>
-                            <ol style="margin:10px 0 0 20px; color:#666; line-height:1.8;">
-                                <li>アフィリエイター1人に対して ID を1つ発行</li>
-                                <li>発行リンクを本人に渡す</li>
-                                <li>「👥 アフィリエイター分析」タブで各IDの成果を確認</li>
-                                <li>報酬計算は「診断完了」または「LINE遷移」を基準にするのが一般的</li>
+                            <strong style="color:#333;">💡 LP→LINE導線の仕組み</strong>
+                            <ol style="margin:10px 0 0 20px; color:#666; line-height:1.8; font-size:0.9rem;">
+                                <li>登録されたアフィリエイターの <code>?ref=&lt;slug&gt;</code> 付きURLを本人に渡す</li>
+                                <li>訪問者がLP上のCTAをタップ → 登録された LINE 流入経路リンクへ遷移</li>
+                                <li>LINE側でタグ付与・診断ページへ誘導はLステップ側の設定</li>
+                                <li>報酬の根拠は <strong>「LINEクリック数」</strong> （下記の表に表示）</li>
                             </ol>
                         </div>
                     </div>
 
                     <div class="card">
-                        <h2><span class="icon">📋</span> 発行済みアフィリエイター一覧</h2>
-                        <p style="color:#888; font-size:0.85rem; margin-bottom:12px;">ローカル保存された発行履歴です。別端末で管理するときはCSVに書き出してください。</p>
-                        <div id="minako-aff-history" style="max-height:560px; overflow-y:auto;">
-                            <div class="loading">履歴なし</div>
+                        <h2><span class="icon">📋</span> アフィリエイター一覧</h2>
+                        <p style="color:#888; font-size:0.85rem; margin-bottom:12px;">期間内のLP訪問数(PV)・LP→LINEクリック数・CVR が表示されます。期間は画面上部のプリセットに従います。</p>
+                        <div style="overflow-x:auto;">
+                            <table style="width:100%; border-collapse:collapse; font-size:0.88rem;">
+                                <thead>
+                                    <tr style="background:#f8f9fa; text-align:left;">
+                                        <th style="padding:10px 8px; border-bottom:2px solid #e0e0e0;">名前</th>
+                                        <th style="padding:10px 8px; border-bottom:2px solid #e0e0e0;">slug</th>
+                                        <th style="padding:10px 8px; border-bottom:2px solid #e0e0e0; text-align:right;">PV</th>
+                                        <th style="padding:10px 8px; border-bottom:2px solid #e0e0e0; text-align:right;">UU</th>
+                                        <th style="padding:10px 8px; border-bottom:2px solid #e0e0e0; text-align:right;">LINE</th>
+                                        <th style="padding:10px 8px; border-bottom:2px solid #e0e0e0; text-align:right;">CVR</th>
+                                        <th style="padding:10px 8px; border-bottom:2px solid #e0e0e0;">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="aff-table-body">
+                                    <tr><td colspan="7" style="padding:20px; color:#888; text-align:center;">読み込み中...</td></tr>
+                                </tbody>
+                            </table>
                         </div>
                         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
-                            <button onclick="exportMinakoAffiliateHistoryCsv()" style="padding:8px 16px; background:#7EB8DA; color:white; border:none; border-radius:6px; cursor:pointer; font-size:0.85rem;">💾 履歴CSV</button>
-                            <button onclick="clearMinakoAffiliateHistory()" style="padding:8px 16px; background:#dc3545; color:white; border:none; border-radius:6px; cursor:pointer; font-size:0.85rem;">🗑️ 履歴クリア</button>
+                            <button onclick="loadAffiliateManagement()" style="padding:8px 16px; background:#7EB8DA; color:white; border:none; border-radius:6px; cursor:pointer; font-size:0.85rem;">🔄 再読込</button>
+                            <button onclick="exportAffiliatesCsv()" style="padding:8px 16px; background:#6BCB9E; color:white; border:none; border-radius:6px; cursor:pointer; font-size:0.85rem;">💾 CSVエクスポート</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 編集モーダル -->
+                <div id="aff-edit-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+                    <div style="background:white; border-radius:12px; padding:25px; width:90%; max-width:520px; max-height:90vh; overflow-y:auto;">
+                        <h3 style="margin:0 0 15px 0;">アフィリエイター編集</h3>
+                        <input type="hidden" id="aff-edit-id">
+                        <input type="hidden" id="aff-edit-slug">
+                        <div style="display:flex; flex-direction:column; gap:12px;">
+                            <div>
+                                <label style="display:block; margin-bottom:5px; font-weight:500;">名前</label>
+                                <input type="text" id="aff-edit-name" style="width:100%; padding:10px; border:2px solid #e0e0e0; border-radius:6px;">
+                            </div>
+                            <div>
+                                <label style="display:block; margin-bottom:5px; font-weight:500;">LINE URL</label>
+                                <input type="url" id="aff-edit-line-url" style="width:100%; padding:10px; border:2px solid #e0e0e0; border-radius:6px; font-family:monospace; font-size:0.85rem;">
+                            </div>
+                            <div>
+                                <label style="display:block; margin-bottom:5px; font-weight:500;">流入元</label>
+                                <select id="aff-edit-source" style="width:100%; padding:10px; border:2px solid #e0e0e0; border-radius:6px;">
+                                    <option value="">-- 指定しない --</option>
+                                    <option value="instagram">📷 Instagram</option>
+                                    <option value="twitter">🐦 X（Twitter）</option>
+                                    <option value="tiktok">🎵 TikTok</option>
+                                    <option value="line">💬 LINE</option>
+                                    <option value="youtube">▶️ YouTube</option>
+                                    <option value="blog">📝 ブログ</option>
+                                    <option value="other">🔗 その他</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display:block; margin-bottom:5px; font-weight:500;">メモ</label>
+                                <textarea id="aff-edit-memo" style="width:100%; padding:10px; border:2px solid #e0e0e0; border-radius:6px; min-height:60px; font-family:inherit;"></textarea>
+                            </div>
+                            <div>
+                                <label style="display:flex; align-items:center; gap:8px;">
+                                    <input type="checkbox" id="aff-edit-active">
+                                    <span>有効（無効化するとLPで案内表示に切り替わる）</span>
+                                </label>
+                            </div>
+                            <p id="aff-edit-msg" style="display:none; margin:0; font-size:0.9rem;"></p>
+                            <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:5px;">
+                                <button onclick="closeAffiliateEditModal()" style="padding:10px 18px; background:#f0f0f0; border:1px solid #ddd; border-radius:6px; cursor:pointer;">キャンセル</button>
+                                <button onclick="saveAffiliateEdit()" style="padding:10px 18px; background:#8b6d7a; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">💾 保存</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -3237,83 +3297,9 @@
         }
 
         // =======================================================
-        // minako: アフィリエイトリンク発行（履歴はlocalStorage）
+        // minako: アフィリエイト管理（DB連動）
         // =======================================================
-        function getMinakoAffHistory() {
-            try { return JSON.parse(localStorage.getItem('minakoAffiliateHistory') || '[]'); }
-            catch(e) { return []; }
-        }
-        function setMinakoAffHistory(list) {
-            localStorage.setItem('minakoAffiliateHistory', JSON.stringify(list));
-        }
-        function getMinakoAffiliateName(id) {
-            const list = getMinakoAffHistory();
-            const found = list.find(x => x.id === id);
-            return found ? (found.name || '') : '';
-        }
-
-        function generateMinakoAffiliateId() {
-            // 簡易ID生成（衝突回避のため日付＋ランダム）
-            const rand = Math.random().toString(36).slice(2, 8);
-            const input = document.getElementById('minako-aff-id');
-            if (input) input.value = rand;
-        }
-
-        function generateMinakoAffiliateLink() {
-            const name = (document.getElementById('minako-aff-name').value || '').trim();
-            const id = (document.getElementById('minako-aff-id').value || '').trim();
-            const source = document.getElementById('minako-aff-source').value;
-            const memo = (document.getElementById('minako-aff-memo').value || '').trim();
-            if (!name) { alert('アフィリエイター名を入力してください'); return; }
-            if (!id) { alert('アフィリエイターIDを入力してください'); return; }
-            if (!/^[A-Za-z0-9_\-]+$/.test(id)) { alert('IDは半角英数字・ハイフン・アンダースコアのみ使用できます'); return; }
-
-            const url = buildMinakoAffiliateUrl(id, source);
-            document.getElementById('minako-generated-link').value = url;
-            document.getElementById('minako-link-area').style.display = 'block';
-            document.getElementById('minako-copy-success').style.display = 'none';
-
-            // 履歴に追加（ID重複は上書き）
-            const list = getMinakoAffHistory();
-            const existingIdx = list.findIndex(x => x.id === id);
-            const item = { id, name, source: source || '', memo, url, createdAt: new Date().toISOString() };
-            if (existingIdx >= 0) list[existingIdx] = Object.assign({}, list[existingIdx], item);
-            else list.unshift(item);
-            setMinakoAffHistory(list);
-            renderMinakoAffiliateHistory();
-
-            // フォームはID以外クリア（続けて別のアフィリエイターを発行しやすく）
-            document.getElementById('minako-aff-name').value = '';
-            document.getElementById('minako-aff-id').value = '';
-            document.getElementById('minako-aff-memo').value = '';
-        }
-
-        function buildMinakoAffiliateUrl(id, source) {
-            const params = new URLSearchParams();
-            params.set('ref', id);
-            if (source) {
-                params.set('utm_source', source);
-                params.set('utm_medium', 'affiliate');
-                params.set('utm_campaign', id);
-            }
-            return `${MINAKO_SITE_URL}/?${params.toString()}`;
-        }
-
-        function copyMinakoLink() {
-            const el = document.getElementById('minako-generated-link');
-            if (!el) return;
-            copyText(el.value, () => {
-                const s = document.getElementById('minako-copy-success');
-                if (s) { s.style.display = 'block'; setTimeout(() => s.style.display = 'none', 2500); }
-            });
-        }
-
-        function copyMinakoAffiliateLinkFromId(id) {
-            const list = getMinakoAffHistory();
-            const found = list.find(x => x.id === id);
-            const url = (found && found.url) || buildMinakoAffiliateUrl(id, '');
-            copyText(url, () => alert('コピーしました: ' + url));
-        }
+        let lastAffiliates = []; // 直近のAPI取得結果キャッシュ
 
         function copyText(text, onSuccess) {
             if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -3331,76 +3317,260 @@
             document.body.removeChild(ta);
         }
 
+        // 他タブ（renderMinakoOverviewTop / renderMinakoAffiliateTrend / showMinakoAffiliateDetail / renderMinakoAffiliateTable）から参照されるユーティリティ
+        function getMinakoAffiliateName(slug) {
+            const found = (lastAffiliates || []).find(x => x.slug === slug);
+            return found ? (found.name || '') : '';
+        }
+
+        function buildAffiliateLpUrl(slug, source) {
+            const params = new URLSearchParams();
+            params.set('ref', slug);
+            if (source) {
+                params.set('utm_source', source);
+                params.set('utm_medium', 'affiliate');
+                params.set('utm_campaign', slug);
+            }
+            return `${MINAKO_SITE_URL}/?${params.toString()}`;
+        }
+
+        function copyMinakoAffiliateLinkFromId(slug) {
+            const found = (lastAffiliates || []).find(x => x.slug === slug);
+            const source = found ? (found.source || '') : '';
+            const url = buildAffiliateLpUrl(slug, source);
+            copyText(url, () => alert('コピーしました: ' + url));
+        }
+
+        // 互換ラッパー（ログイン直後・タブ切替時に呼ばれる）
         function renderMinakoAffiliateHistory() {
-            const container = document.getElementById('minako-aff-history');
-            if (!container) return;
-            const list = getMinakoAffHistory();
-            if (!list.length) {
-                container.innerHTML = '<div style="color:#888; text-align:center; padding:20px;">発行履歴がありません</div>';
+            return loadAffiliateManagement();
+        }
+
+        function generateAffiliateSlug() {
+            const rand = Math.random().toString(36).slice(2, 8);
+            const input = document.getElementById('aff-slug');
+            if (input) input.value = rand;
+        }
+
+        function showAffFormMsg(text, ok) {
+            const el = document.getElementById('aff-form-msg');
+            if (!el) return;
+            el.style.display = 'block';
+            el.style.color = ok ? '#6BCB9E' : '#dc3545';
+            el.textContent = text;
+            if (ok) setTimeout(() => { el.style.display = 'none'; }, 4000);
+        }
+
+        async function submitAffiliateForm() {
+            if (currentSite !== 'minako') {
+                alert('minako サイトに切り替えてから登録してください');
                 return;
             }
-            container.innerHTML = list.map((x, i) => {
-                const dt = new Date(x.createdAt);
-                const dstr = `${dt.getMonth()+1}/${dt.getDate()} ${dt.getHours()}:${String(dt.getMinutes()).padStart(2,'0')}`;
-                const sourceTag = x.source ? `<span style="font-size:0.7rem; background:#f0e8e0; color:#8b6d7a; padding:2px 6px; border-radius:4px; margin-left:6px;">${escapeHtml(x.source)}</span>` : '';
+            const name = (document.getElementById('aff-name').value || '').trim();
+            const slug = (document.getElementById('aff-slug').value || '').trim();
+            const lineUrl = (document.getElementById('aff-line-url').value || '').trim();
+            const source = document.getElementById('aff-source').value;
+            const memo = (document.getElementById('aff-memo').value || '').trim();
+            if (!name) { showAffFormMsg('アフィリエイター名を入力してください', false); return; }
+            if (!slug) { showAffFormMsg('スラッグを入力してください', false); return; }
+            if (!/^[A-Za-z0-9_\-]{2,40}$/.test(slug)) { showAffFormMsg('スラッグは半角英数・ハイフン・アンダースコアの2〜40文字', false); return; }
+            if (!/^https?:\/\//i.test(lineUrl)) { showAffFormMsg('LINE URLは https:// で始まるURLが必要', false); return; }
+
+            try {
+                const res = await fetch(withSite(`${API_BASE}/api/admin/affiliates`), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+                    body: JSON.stringify({ slug, name, line_url: lineUrl, source: source || null, memo: memo || null, is_active: true })
+                });
+                const j = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    showAffFormMsg(j.error || '登録に失敗しました', false);
+                    return;
+                }
+                document.getElementById('aff-name').value = '';
+                document.getElementById('aff-slug').value = '';
+                document.getElementById('aff-line-url').value = '';
+                document.getElementById('aff-memo').value = '';
+                showAffFormMsg(`✓ 登録しました: ${MINAKO_SITE_URL}/?ref=${slug}`, true);
+                await loadAffiliateManagement();
+            } catch (e) {
+                console.error(e);
+                showAffFormMsg('通信エラー: ' + e.message, false);
+            }
+        }
+
+        async function loadAffiliateManagement() {
+            const tbody = document.getElementById('aff-table-body');
+            if (!tbody) return;
+            if (currentSite !== 'minako') {
+                tbody.innerHTML = '<tr><td colspan="7" style="padding:20px; color:#888; text-align:center;">minako サイトに切り替えてください</td></tr>';
+                return;
+            }
+            if (!apiKey) {
+                tbody.innerHTML = '<tr><td colspan="7" style="padding:20px; color:#888; text-align:center;">未ログイン</td></tr>';
+                return;
+            }
+            try {
+                const { startDate, endDate } = getDateRange();
+                const url = withSite(`${API_BASE}/api/admin/affiliates?startDate=${startDate}&endDate=${endDate}`);
+                const res = await fetch(url, { headers: { 'X-API-Key': apiKey } });
+                if (!res.ok) {
+                    tbody.innerHTML = `<tr><td colspan="7" style="padding:20px; color:#dc3545; text-align:center;">読込失敗 (${res.status})</td></tr>`;
+                    return;
+                }
+                const j = await res.json();
+                lastAffiliates = j.affiliates || [];
+                renderAffiliateTable();
+            } catch (e) {
+                console.error(e);
+                tbody.innerHTML = `<tr><td colspan="7" style="padding:20px; color:#dc3545; text-align:center;">通信エラー: ${escapeHtml(e.message)}</td></tr>`;
+            }
+        }
+
+        function renderAffiliateTable() {
+            const tbody = document.getElementById('aff-table-body');
+            if (!tbody) return;
+            if (!lastAffiliates.length) {
+                tbody.innerHTML = '<tr><td colspan="7" style="padding:20px; color:#888; text-align:center;">アフィリエイターが登録されていません</td></tr>';
+                return;
+            }
+            tbody.innerHTML = lastAffiliates.map(a => {
+                const cvr = (a.cvrToLine || 0) * 100;
+                const cvrStr = a.pv > 0 ? cvr.toFixed(1) + '%' : '—';
+                const inactiveStyle = a.is_active ? '' : 'opacity:0.45;';
+                const inactiveBadge = a.is_active ? '' : ' <span style="font-size:0.7rem; background:#fce0e0; color:#a33; padding:2px 6px; border-radius:4px;">無効</span>';
+                const sourceTag = a.source ? `<span style="font-size:0.7rem; background:#f0e8e0; color:#8b6d7a; padding:2px 6px; border-radius:4px; margin-left:4px;">${escapeHtml(a.source)}</span>` : '';
                 return `
-                    <div style="padding:12px; border-bottom:1px solid #eee;">
-                        <div style="display:flex; justify-content:space-between; gap:8px; align-items:flex-start;">
-                            <div style="flex:1; min-width:0;">
-                                <div style="font-weight:600; color:#333;">${escapeHtml(x.name)} ${sourceTag}</div>
-                                <div style="font-family:monospace; color:#8b6d7a; font-size:0.9rem; margin-top:2px;">${escapeHtml(x.id)}</div>
-                                ${x.memo ? `<div style="font-size:0.8rem; color:#888; margin-top:4px;">📝 ${escapeHtml(x.memo)}</div>` : ''}
-                                <div style="font-size:0.75rem; color:#aaa; margin-top:4px;">${dstr}</div>
+                    <tr style="border-bottom:1px solid #eee; ${inactiveStyle}">
+                        <td style="padding:10px 8px;">
+                            <div style="font-weight:600;">${escapeHtml(a.name)}${inactiveBadge}${sourceTag}</div>
+                            ${a.memo ? `<div style="font-size:0.75rem; color:#888; margin-top:2px;">${escapeHtml(a.memo)}</div>` : ''}
+                        </td>
+                        <td style="padding:10px 8px; font-family:monospace; color:#8b6d7a;">${escapeHtml(a.slug)}</td>
+                        <td style="padding:10px 8px; text-align:right;">${(a.pv || 0).toLocaleString()}</td>
+                        <td style="padding:10px 8px; text-align:right;">${(a.uu || 0).toLocaleString()}</td>
+                        <td style="padding:10px 8px; text-align:right; color:#8b6d7a; font-weight:600;">${(a.lpLineClicks || 0).toLocaleString()}</td>
+                        <td style="padding:10px 8px; text-align:right; ${cvr >= 10 ? 'color:#6BCB9E; font-weight:600;' : ''}">${cvrStr}</td>
+                        <td style="padding:10px 8px;">
+                            <div style="display:flex; gap:4px; flex-wrap:wrap;">
+                                <button onclick="copyAffiliateLpUrl('${escapeAttr(a.slug)}')" title="LP URLをコピー" style="padding:5px 8px; background:#8b6d7a; color:white; border:none; border-radius:4px; cursor:pointer; font-size:0.75rem;">📋 LP</button>
+                                <button onclick="openAffiliateEditModal(${a.id})" title="編集" style="padding:5px 8px; background:#7EB8DA; color:white; border:none; border-radius:4px; cursor:pointer; font-size:0.75rem;">✎</button>
+                                <button onclick="deleteAffiliate(${a.id}, '${escapeAttr(a.name)}')" title="削除" style="padding:5px 8px; background:#dc3545; color:white; border:none; border-radius:4px; cursor:pointer; font-size:0.75rem;">🗑</button>
                             </div>
-                            <div style="display:flex; flex-direction:column; gap:6px;">
-                                <button onclick="copyMinakoAffHistoryByIndex(${i})" style="padding:6px 10px; background:#8b6d7a; color:white; border:none; border-radius:4px; cursor:pointer; font-size:0.8rem;">📋 コピー</button>
-                                <button onclick="deleteMinakoAffHistory(${i})" style="padding:6px 10px; background:#f0f0f0; color:#888; border:1px solid #ddd; border-radius:4px; cursor:pointer; font-size:0.8rem;">削除</button>
-                            </div>
-                        </div>
-                    </div>
+                        </td>
+                    </tr>
                 `;
             }).join('');
         }
 
-        function copyMinakoAffHistoryByIndex(i) {
-            const list = getMinakoAffHistory();
-            const item = list[i];
-            if (!item) return;
-            copyText(item.url, () => alert('コピーしました'));
+        function copyAffiliateLpUrl(slug) {
+            const found = lastAffiliates.find(x => x.slug === slug);
+            const source = found ? (found.source || '') : '';
+            const url = buildAffiliateLpUrl(slug, source);
+            copyText(url, () => alert('コピーしました:\n' + url));
         }
-        function deleteMinakoAffHistory(i) {
-            if (!confirm('この発行履歴を削除しますか？（発行済みのリンクは生き続けますが、管理画面上の履歴からは消えます）')) return;
-            const list = getMinakoAffHistory();
-            list.splice(i, 1);
-            setMinakoAffHistory(list);
-            renderMinakoAffiliateHistory();
+
+        function openAffiliateEditModal(id) {
+            const a = lastAffiliates.find(x => x.id === id);
+            if (!a) return;
+            document.getElementById('aff-edit-id').value = a.id;
+            document.getElementById('aff-edit-slug').value = a.slug;
+            document.getElementById('aff-edit-name').value = a.name || '';
+            document.getElementById('aff-edit-line-url').value = a.line_url || '';
+            document.getElementById('aff-edit-source').value = a.source || '';
+            document.getElementById('aff-edit-memo').value = a.memo || '';
+            document.getElementById('aff-edit-active').checked = !!a.is_active;
+            const msg = document.getElementById('aff-edit-msg');
+            if (msg) msg.style.display = 'none';
+            const modal = document.getElementById('aff-edit-modal');
+            modal.style.display = 'flex';
         }
-        function clearMinakoAffiliateHistory() {
-            if (!confirm('発行履歴をすべて削除しますか？')) return;
-            localStorage.removeItem('minakoAffiliateHistory');
-            renderMinakoAffiliateHistory();
+
+        function closeAffiliateEditModal() {
+            const modal = document.getElementById('aff-edit-modal');
+            if (modal) modal.style.display = 'none';
         }
-        function exportMinakoAffiliateHistoryCsv() {
-            const list = getMinakoAffHistory();
-            if (!list.length) { alert('履歴がありません'); return; }
-            const header = '名前,ID,流入元,メモ,URL,発行日時\n';
-            const rows = list.map(x => [
-                `"${(x.name || '').replace(/"/g, '""')}"`,
-                x.id,
-                x.source || '',
-                `"${(x.memo || '').replace(/"/g, '""')}"`,
-                x.url,
-                x.createdAt
-            ].join(',')).join('\n');
-            const csv = '\uFEFF' + header + rows;
+
+        async function saveAffiliateEdit() {
+            const id = parseInt(document.getElementById('aff-edit-id').value, 10);
+            if (!Number.isFinite(id)) return;
+            const name = document.getElementById('aff-edit-name').value.trim();
+            const lineUrl = document.getElementById('aff-edit-line-url').value.trim();
+            const source = document.getElementById('aff-edit-source').value;
+            const memo = document.getElementById('aff-edit-memo').value.trim();
+            const isActive = document.getElementById('aff-edit-active').checked;
+            const msgEl = document.getElementById('aff-edit-msg');
+            const showMsg = (t, ok) => {
+                msgEl.style.display = 'block';
+                msgEl.style.color = ok ? '#6BCB9E' : '#dc3545';
+                msgEl.textContent = t;
+            };
+            if (!name) { showMsg('名前を入力してください', false); return; }
+            if (!/^https?:\/\//i.test(lineUrl)) { showMsg('LINE URLは https:// で始まる必要があります', false); return; }
+            try {
+                const res = await fetch(withSite(`${API_BASE}/api/admin/affiliates/${id}`), {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+                    body: JSON.stringify({ name, line_url: lineUrl, source: source || '', memo, is_active: isActive })
+                });
+                const j = await res.json().catch(() => ({}));
+                if (!res.ok) { showMsg(j.error || '保存失敗', false); return; }
+                closeAffiliateEditModal();
+                await loadAffiliateManagement();
+            } catch (e) {
+                showMsg('通信エラー: ' + e.message, false);
+            }
+        }
+
+        async function deleteAffiliate(id, name) {
+            if (!confirm(`「${name}」を削除しますか？\n（既に発行済みのLPは404になります。集計データは残ります）`)) return;
+            try {
+                const res = await fetch(withSite(`${API_BASE}/api/admin/affiliates/${id}`), {
+                    method: 'DELETE',
+                    headers: { 'X-API-Key': apiKey }
+                });
+                if (!res.ok) {
+                    const j = await res.json().catch(() => ({}));
+                    alert(j.error || '削除失敗');
+                    return;
+                }
+                await loadAffiliateManagement();
+            } catch (e) {
+                alert('通信エラー: ' + e.message);
+            }
+        }
+
+        function exportAffiliatesCsv() {
+            if (!lastAffiliates.length) { alert('データがありません'); return; }
+            const header = '名前,slug,LINE URL,流入元,メモ,有効,LP URL,PV,UU,LINEクリック,CVR,作成日時\n';
+            const rows = lastAffiliates.map(a => {
+                const url = buildAffiliateLpUrl(a.slug, a.source);
+                const cvr = a.pv > 0 ? ((a.lpLineClicks / a.pv) * 100).toFixed(2) + '%' : '';
+                return [
+                    `"${(a.name || '').replace(/"/g, '""')}"`,
+                    a.slug,
+                    a.line_url,
+                    a.source || '',
+                    `"${(a.memo || '').replace(/"/g, '""')}"`,
+                    a.is_active ? '有効' : '無効',
+                    url,
+                    a.pv || 0,
+                    a.uu || 0,
+                    a.lpLineClicks || 0,
+                    cvr,
+                    a.created_at || ''
+                ].join(',');
+            }).join('\n');
+            const csv = '﻿' + header + rows;
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `minako_affiliates_${new Date().toISOString().slice(0,10)}.csv`;
+            a.download = `affiliates_${new Date().toISOString().slice(0,10)}.csv`;
             a.click();
             window.URL.revokeObjectURL(url);
         }
+
     </script>
 </body>
 </html>
