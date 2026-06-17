@@ -11,9 +11,14 @@ const { createClient } = require('@supabase/supabase-js');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Supabase設定
+// Supabase設定（secret キーは絶対にソースに直書きしない。環境変数のみ）
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://xflhnfrtbkjvopaueitb.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_KEY || 'sb_secret_oFVC9jo-NVJy8zQT087UgQ_Q8pHDsAx';
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
+if (!SUPABASE_KEY) {
+    throw new Error(
+        'SUPABASE_KEY 環境変数が未設定です。Render の Environment に Supabase の secret キーを設定してください。'
+    );
+}
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ミドルウェア
